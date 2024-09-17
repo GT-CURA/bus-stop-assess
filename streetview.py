@@ -2,9 +2,9 @@ import googlemaps.client
 import pandas as pd
 import googlemaps
 import requests
-import cv2
-import numpy as np
 import os
+from cv2 import imread, imwrite
+from numpy import hstack
 
 # Parameters for all pics 
 pic_size = "500x500"
@@ -21,7 +21,7 @@ def pull_image(stops: pd.DataFrame, folder_name: str, lat_col: str, lon_col: str
         folder_name (string): Name of the output folder
         lat_col (string): Name of the column containing latitude coordinates
         lon_col (string): Name of the column containing longtitude coordinates
-        id_col (string): Name of the column containing bus stop ids 
+        id_col (string): Name of the column containing bus stop IDs 
     """
 
     # Iterate through each row in dataframe
@@ -67,10 +67,10 @@ def pull_image(stops: pd.DataFrame, folder_name: str, lat_col: str, lon_col: str
 
 def stitch_images(image_paths, folder_name):
     # Load images, create stitcher 
-    images = [cv2.imread(image_path) for image_path in image_paths]
+    images = [imread(image_path) for image_path in image_paths]
 
     # Stitch images 
-    stitched_image = np.hstack(images)
+    stitched_image = hstack(images)
 
     # Remove path and degree from name lol
     name = image_paths[0].replace('_0', '_stitched')
@@ -80,7 +80,7 @@ def stitch_images(image_paths, folder_name):
     if not os.path.exists(folder_name):
         os.makedirs(folder_name)
     path = os.getcwd() + "/" + folder_name + "/" + name
-    cv2.imwrite(path, stitched_image)
+    imwrite(path, stitched_image)
 
 if __name__ == "__main__":
     # Read API key 
