@@ -6,16 +6,16 @@ import cv2
 import numpy as np
 import os
 
-def pull_image(stops, folder_name):
-    # Parameters for all pics 
-    pic_base = 'https://maps.googleapis.com/maps/api/streetview?'
-    pic_size = "500x500"
-    num_pics = 8
+# Parameters for all pics 
+pic_size = "500x500"
+num_pics = 8
+pic_base = 'https://maps.googleapis.com/maps/api/streetview?'
 
-    # Iterate through entries
+def pull_image(stops, folder_name, lat_name, lon_name, id_name):
     for index,row in stops.iterrows():
+
         # Set location to match current bus stop
-        location = f"{row['Stop_Lat']},{row['Stop_Lon']}"
+        location = f"{row[lat_name]},{row[lon_name]}"
         image_paths = []
 
         # Capture 'num_pics' many photos
@@ -31,13 +31,15 @@ def pull_image(stops, folder_name):
             try: 
                 response = requests.get(pic_base, params=pic_params)
             except requests.exceptions.RequestException as e: 
-                print(f"Failed to pull {row['Record_ID']}: {e}")
+                print(f"Failed to pull {row[id_name]}: {e}")
                 continue 
             
-            # Write image
+            # Make temp folder to store panorama segments
             if not os.path.exists("temp"):
                 os.makedirs("temp")
-            image_path = "temp" + "/" + f"{row['Record_ID']}" + "_" + f"{degree}" + ".jpg"
+            
+            # Write this image segment into the temp folder
+            image_path = "temp" + "/" + f"{row[id_name]}" + "_" + f"{degree}" + ".jpg"
             with open(image_path, "wb") as file:
                 file.write(response.content)
             
@@ -71,10 +73,3 @@ if __name__ == "__main__":
     # Read API key 
     api_key = open("api_key.txt", "r").read()
     gmaps = googlemaps.Client(key=api_key)
-
-    # Read CSV into memory
-    bus_stops = pd.read_csv('MARTA.csv')
-
-    # Pull test images
-    entry = bus_stops[bus_stops["Record_ID"] == 1816]
-    pull_image(entry, "Test")
