@@ -11,11 +11,24 @@ pic_size = "500x500"
 num_pics = 8
 pic_base = 'https://maps.googleapis.com/maps/api/streetview?'
 
-def pull_image(stops, folder_name, lat_name, lon_name, id_name):
+def pull_image(stops: pd.DataFrame, folder_name: str, lat_col: str, lon_col: str, id_col: str):
+    """
+    Given a dataframe of coordinates, pulls a panorama of each coordinate from Google Streetview. 
+    Pulls num_pics many images and stitches them together into a panorama. 
+
+    Args:
+        stops (dataframe): All coordinates to pull images of. 
+        folder_name (string): Name of the output folder
+        lat_col (string): Name of the column containing latitude coordinates
+        lon_col (string): Name of the column containing longtitude coordinates
+        id_col (string): Name of the column containing bus stop ids 
+    """
+
+    # Iterate through each row in dataframe
     for index,row in stops.iterrows():
 
         # Set location to match current bus stop
-        location = f"{row[lat_name]},{row[lon_name]}"
+        location = f"{row[lat_col]},{row[lon_col]}"
         image_paths = []
 
         # Capture 'num_pics' many photos
@@ -31,7 +44,7 @@ def pull_image(stops, folder_name, lat_name, lon_name, id_name):
             try: 
                 response = requests.get(pic_base, params=pic_params)
             except requests.exceptions.RequestException as e: 
-                print(f"Failed to pull {row[id_name]}: {e}")
+                print(f"Failed to pull {row[id_col]}: {e}")
                 continue 
             
             # Make temp folder to store panorama segments
@@ -39,7 +52,7 @@ def pull_image(stops, folder_name, lat_name, lon_name, id_name):
                 os.makedirs("temp")
             
             # Write this image segment into the temp folder
-            image_path = "temp" + "/" + f"{row[id_name]}" + "_" + f"{degree}" + ".jpg"
+            image_path = "temp" + "/" + f"{row[id_col]}" + "_" + f"{degree}" + ".jpg"
             with open(image_path, "wb") as file:
                 file.write(response.content)
             
