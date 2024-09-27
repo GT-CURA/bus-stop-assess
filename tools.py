@@ -3,8 +3,9 @@ import pandas as pd
 import googlemaps
 import requests
 import os
-from cv2 import imread, imwrite
-from numpy import hstack
+import cv2
+import numpy as np
+import onnxruntime as ort
 
 class streetview:
     # Parameters for all pics 
@@ -80,10 +81,10 @@ class streetview:
 
     def stitch_images(self, image_paths, folder_name):
         # Load images, create stitcher 
-        images = [imread(image_path) for image_path in image_paths]
+        images = [cv2.imread(image_path) for image_path in image_paths]
 
         # Stitch images 
-        stitched_image = hstack(images)
+        stitched_image = np.hstack(images)
 
         # Remove path and degree from name lol
         name = image_paths[0].replace('_0', '_stitched')
@@ -93,4 +94,97 @@ class streetview:
         if not os.path.exists(folder_name):
             os.makedirs(folder_name)
         path = os.getcwd() + "/" + folder_name + "/" + name
-        imwrite(path, stitched_image)
+        cv2.imwrite(path, stitched_image)
+        
+class yolo:
+    # Constants
+    input_shape = [1, 3, 640, 640]
+    topk = 100
+    iouThreshold = 0.45
+    scoreThreshold = 0.2
+    class_names = ["Seating", "Shelter", "Signage", "Trash Can"] 
+
+    def __init__(self):
+        print("okay")
+
+    def run(self, image_path):
+        # Start model 
+        session = ort.InferenceSession("models/attempt-2.onnx")
+        nms = ort.InferenceSession("models/nms-yolov8.onnx")
+        
+        image = cv2.imread(image_path) # Read into CV
+        cv2.imshow("yeah", image)
+        self.original_height = image.shape[0]
+        self.original_width = image.shape[1]
+
+        processed_image = self.preprocess_image(image) # Pre-process image
+
+        # Run model 
+        config = np.array([self.topk, self.iouThreshold, self.scoreThreshold])
+        output = session.run(None, {"images": processed_image})
+        selected = nms.run(None, {"detection": output[0], "config": config.astype(np.float32)})
+
+        # Draw boxes
+        boxes = self.get_boxes(selected[0])
+        return self.draw_boxes(boxes, image)
+    
+    def preprocess_image(self, image):
+        image = cv2.cvtColor(image, cv2.COLOR_RGBA2BGR)
+        width, height = image.shape[0], image.shape[1]
+        max_dim = max(height, width)
+        
+        # Determine padding for x and y 
+        x_pad = max_dim - width
+        self.x_ratio = max_dim / width
+        y_pad = max_dim - height
+        self.y_ratio = max_dim / height
+
+        image = cv2.copyMakeBorder(image, 0, y_pad, 0, x_pad, cv2.BORDER_CONSTANT) # Add padding
+        image = image.astype(np.float32) / 255.0    # Normalize image
+        image = cv2.resize(image, (640, 640))   # Resize image
+        image = np.expand_dims(image, axis=0)   # Expand dimensions
+        image = np.transpose(image, (0, 3, 1, 2))
+        return image
+    
+    def get_boxes(self, selected):
+        boxes = []
+        for i in range(selected.shape[1]):
+            # Get rows
+            data = selected[0,i,:]
+            x, y, w, h = data[:4]
+            # Naximum probability score
+            scores = data[4:]
+            score = np.max(scores)
+            label = np.argmax(scores)
+
+            # Upscale box 
+            x *= self.x_ratio
+            y *= self.y_ratio
+            w *= self.x_ratio
+            h *= self.y_ratio
+
+            x1 = int(x - w / 2)
+            y1 = int(y - h / 2)
+            x2 = int(x + w / 2)
+            y2 = int(y + h / 2)
+
+            # Add to boxes
+            boxes.append({
+                "label": label, 
+                "prob": score, 
+                "bounds": (int(x1), int(y1), int(x2), int(y2))
+            })
+        
+        return boxes
+    
+    def draw_boxes(self, boxes, image):
+        final = image
+        for box in boxes:
+            bounds = box["bounds"]
+            cv2.rectangle(final, (bounds[0], bounds[1]), (bounds[2], bounds[3]), (0, 255, 0), 2)
+        
+             # Display confidence and class
+            label = f"{self.class_names[box['label']]}: {box['prob']:.2f}"
+            cv2.putText(final, label, (bounds[0], bounds[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+        return final
+        
