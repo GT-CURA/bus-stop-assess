@@ -6,6 +6,6 @@ import tools
 
 if __name__ == "__main__":
     yolo = tools.yolo()
-    final = yolo.run("pics/northside.png")
+    final = yolo.run("pics/10th.png")
     cv2.imwrite("output.png", final)
     print("done")

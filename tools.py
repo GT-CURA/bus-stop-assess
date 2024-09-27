@@ -104,16 +104,12 @@ class yolo:
     scoreThreshold = 0.2
     class_names = ["Seating", "Shelter", "Signage", "Trash Can"] 
 
-    def __init__(self):
-        print("okay")
-
     def run(self, image_path):
         # Start model 
         session = ort.InferenceSession("models/attempt-2.onnx")
         nms = ort.InferenceSession("models/nms-yolov8.onnx")
         
         image = cv2.imread(image_path) # Read into CV
-        cv2.imshow("yeah", image)
         self.original_height = image.shape[0]
         self.original_width = image.shape[1]
 
@@ -123,7 +119,7 @@ class yolo:
         config = np.array([self.topk, self.iouThreshold, self.scoreThreshold])
         output = session.run(None, {"images": processed_image})
         selected = nms.run(None, {"detection": output[0], "config": config.astype(np.float32)})
-
+        
         # Draw boxes
         boxes = self.get_boxes(selected[0])
         return self.draw_boxes(boxes, image)
@@ -139,7 +135,10 @@ class yolo:
         y_pad = max_dim - height
         self.y_ratio = max_dim / height
 
-        image = cv2.copyMakeBorder(image, 0, y_pad, 0, x_pad, cv2.BORDER_CONSTANT) # Add padding
+        self.scale_x = width / 640
+        self.scale_y = height / 640
+
+        # image = cv2.copyMakeBorder(image, 0, y_pad, 0, x_pad, cv2.BORDER_CONSTANT) # Add padding
         image = image.astype(np.float32) / 255.0    # Normalize image
         image = cv2.resize(image, (640, 640))   # Resize image
         image = np.expand_dims(image, axis=0)   # Expand dimensions
@@ -157,16 +156,15 @@ class yolo:
             score = np.max(scores)
             label = np.argmax(scores)
 
-            # Upscale box 
-            x *= self.x_ratio
-            y *= self.y_ratio
-            w *= self.x_ratio
-            h *= self.y_ratio
+            # Calculate box coordinates
+            x1, y1 = x - w / 2, y - h / 2
+            x2, y2 = x + w / 2, y + h / 2
 
-            x1 = int(x - w / 2)
-            y1 = int(y - h / 2)
-            x2 = int(x + w / 2)
-            y2 = int(y + h / 2)
+            # Scale coordinates to match dimensions of original image
+            x1 = int(x1 * self.scale_x)
+            y1 = int(y1 * self.scale_y)
+            x2 = int(x2 * self.scale_x)
+            y2 = int(y2 * self.scale_y)
 
             # Add to boxes
             boxes.append({
