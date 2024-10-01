@@ -28,6 +28,39 @@ class streetview:
         self.lon_col = lon_col
         self.id_col = id_col
 
+    def improve_coordinates(lat, lon, radius=10):
+        """
+        Pull Google's coordinates for a bus stop in the event that the provided coordinates suck
+        """
+        # Set area in which bus stop must be found
+        location_restriction = {
+            'circle':{
+                'center':{
+                    "latitude": lat,
+                    'longitude': lon,
+                },
+                'radius': radius
+            }
+        }
+
+        # Parameters for request
+        params = {
+            'includedTypes': "bus_stop",
+            'rankPrefence':"DISTANCE",
+            'location_restriction': location_restriction,
+            'maxResultCount': 1
+        }
+
+        # Send request
+        try: 
+            response = requests.get(self.pic_base, params=params)
+        except requests.exceptions.RequestException as e: 
+            print("oops:",e)
+
+        # Pull coordinates from response
+        response.content["places"].
+        
+
     def pull_image(self, stops: pd.DataFrame, folder_name: str):
         """
         Given a dataframe of coordinates, pulls a panorama of each coordinate from Google Streetview. 

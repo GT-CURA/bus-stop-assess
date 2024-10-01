@@ -1,18 +1,10 @@
 from tools import streetview
 import pandas as pd 
 
-# Read CV file 
-bus_stops = pd.read_csv('MARTA_bus_stop_data.csv')
+# Read MARTA's inventory of bus stops 
+bus_stops = pd.read_csv("data/MARTA_cleaned.csv")
 
-bus_stops["BUS_STOP_TYPE"].unique()
-
-# All signs
-tet = bus_stops["BUS_STOP_TYPE"].value_counts()
-signs = bus_stops[(bus_stops["BUS STOP TYPE"] == "Sign Strapped to Pole") | (bus_stops["BUS STOP TYPE"] == "Sign on Post")]
-# All Shelter 
-
-
-
+# 
 """
 # Create instance
 instance = streetview("Stop_Lat", "Stop_Lon", "Stop_ID")
