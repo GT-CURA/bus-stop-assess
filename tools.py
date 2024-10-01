@@ -58,8 +58,19 @@ class streetview:
             print("oops:",e)
 
         # Pull coordinates from response
-        response.content["places"].
-        
+        response.content["places"]
+    
+    def get_pano_coords(lon, lat):
+        """
+        Extract coordiantes from a pano's metadata
+        Use the coords returned as the new pano coordinates (they will be more precise)
+        """
+        # Params for request
+    
+    def get_pov():
+        """
+        Use pano's coords to determine the necessary camera POV.
+        """
 
     def pull_image(self, stops: pd.DataFrame, folder_name: str):
         """
