@@ -26,7 +26,7 @@ class streetview:
 
         # Set up params
         self.folder_path = folder_path
-
+    
     def improve_coordinates(self, coords: coord, radius=500):
         """
         Pull Google's coordinates for a bus stop in the event that the provided coordinates suck
@@ -67,7 +67,7 @@ class streetview:
         pano_id = response.json().get("pano_id")
         return pano_coords, pano_id
     
-    def get_heading(self, coords: coord, pano_coords: coord):
+    def get_heading(self, coords: coord = None, pano_coords: coord = None):
         """
         Use pano's coords to determine the necessary camera FOV.
         """
@@ -101,8 +101,10 @@ class streetview:
         # Add either coordinate location or pano ID depending on what's provided
         if coords:
             pic_params['location'] = coords.to_string()
+            image_path = path + "/" + f"{coords.to_string()}"+".jpg"
         else: 
             pic_params['pano'] = pano_ID
+            image_path = path + "/" + f"{pano_ID}"+".jpg"
 
         # Try to fetch pic from API 
         response = self.get_response(pic_params, 'https://maps.googleapis.com/maps/api/streetview?')
@@ -112,7 +114,6 @@ class streetview:
             os.makedirs(path)
         
         # Write this image segment into the temp folder
-        image_path = path + "/" + f"{coords.to_string()}"+".jpg"
         with open(image_path, "wb") as file:
             file.write(response.content)
 

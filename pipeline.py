@@ -22,13 +22,12 @@ roswell = coord(33.945827, -84.370956) # ROSWELL RD NE@SPALDING DR NE
 
 # Select shelters
 shelters = bus_stops[bus_stops["Bus Stop Type"] == "Shelter"]
-shelters.sample(7)
+sampled = shelters.sample(7)
 
 # Create new instance of streetview tools
 instance = streetview("test")
 
-# Iteate through selected shelters
-for index, row in shelters:
+def pull_row(row):
     # Get--then improve--cordiantes 
     coordiante = coord(row["Lat"], row["Lon"])
     improved_coords = instance.improve_coordinates(coordiante, radius=100)
@@ -38,8 +37,10 @@ for index, row in shelters:
     heading = instance.get_heading(improved_coords, pano_coords)
 
     # Pull picture using pano ID found earlier
-    instance.pull_image(pano_ID=pano_ID, path="test", fov=80)
+    instance.pull_image(pano_ID=pano_ID, path="test", fov=80, heading=heading, coords=None)
 
+# Pull each row in sample
+sampled.apply(pull_row, axis=1)
 
 # Gather all standalone bus stops
 print("done")
