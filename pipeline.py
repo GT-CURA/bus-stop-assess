@@ -1,10 +1,11 @@
 from tools import streetview, coord, yolo
 from cv2 import imwrite
 import pandas as pd 
-"""
+
 # Read MARTA's inventory of bus stops 
 bus_stops = pd.read_csv("data/atl/MARTA_cleaned.csv")
 
+"""
 # Before I forget: 
 # pull coord from csv -> use nearby API to find precise coordinates of bus stop (if needed) -> 
 # pull pano coord from metadata (Free!!) -> pull image from google streetview API -> stitch (if needed)
@@ -13,29 +14,32 @@ output = yolo_instance.run("manual_pics/sign.png")
 imwrite("output/sign.png",output)
 """
 
-# NORTHSIDE DR @ 10th 
-tenth = coord(33.781825, -84.407667)
+# Temporary test coordinates
+tenth = coord(33.781825, -84.407667) # NORTHSIDE DR @ 10th 
+fourteenth = coord(33.785674, -84.407509) # NORTHSIDE DR @ 14th
+joe = coord(33.745587, -84.417784) #JOSEPH E LOWERY BLVD @ SELLS AVE SW
+roswell = coord(33.945827, -84.370956) # ROSWELL RD NE@SPALDING DR NE
 
-# NORTHSIDE DR @ 14th
-fourteenth = coord(33.785674, -84.407509) 
-
-#JOSEPH E LOWERY BLVD @ SELLS AVE SW
-joe = coord(33.745587, -84.417784)
-
-# ROSWELL RD NE@SPALDING DR NE
-roswell = coord(33.945827, -84.370956)
+# Select shelters
+shelters = bus_stops[bus_stops["Bus Stop Type"] == "Shelter"]
+shelters.sample(7)
 
 # Create new instance of streetview tools
 instance = streetview("test")
 
-# Get coordiantes from google maps' nearby feature 
-improved_coords = instance.improve_coordinates(roswell, radius=500)
+# Iteate through selected shelters
+for index, row in shelters:
+    # Get--then improve--cordiantes 
+    coordiante = coord(row["Lat"], row["Lon"])
+    improved_coords = instance.improve_coordinates(coordiante, radius=100)
 
-# Calculate heading for this bus stop
-heading = instance.get_heading(improved_coords)
+    # Get pano ID, plug it into heading function
+    pano_coords, pano_ID = instance.pull_pano_info(improved_coords)
+    heading = instance.get_heading(improved_coords, pano_coords)
 
-# Pull image of bus stop 
-instance.pull_image(improved_coords, "test", 60, heading=heading)
+    # Pull picture using pano ID found earlier
+    instance.pull_image(pano_ID=pano_ID, path="test", fov=80)
+
 
 # Gather all standalone bus stops
 print("done")

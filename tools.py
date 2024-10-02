@@ -48,7 +48,7 @@ class streetview:
         else: 
             raise f"No nearby bus stop found for {coords.to_string()}"
     
-    def get_pano_coords(self, coords: coord):
+    def pull_pano_info(self, coords: coord):
         """
         Extract coordiantes from a pano's metadata, used to determine heading
         """
@@ -64,15 +64,13 @@ class streetview:
         # Fetch the coordinates from the json response and store in a coords class instance
         pano_location = response.json().get("location")
         pano_coords = coord(pano_location["lat"], pano_location["lng"])
-        return pano_coords
+        pano_id = response.json().get("pano_id")
+        return pano_coords, pano_id
     
-    def get_heading(self, coords: coord):
+    def get_heading(self, coords: coord, pano_coords: coord):
         """
         Use pano's coords to determine the necessary camera FOV.
         """
-        # Determine the panorama's coords 
-        pano_coords = self.get_pano_coords(coords)
-        
         # Convert to radians 
         diff_lon = math.radians(coords.lon - pano_coords.lon)
         lat1 = math.radians(pano_coords.lat)
@@ -89,17 +87,23 @@ class streetview:
         compass_bearing = (initial_bearing + 360) % 360
         return compass_bearing
 
-    def pull_image(self, coords: coord, path: str, fov=120, heading=0):
+    def pull_image(self, coords: coord, pano_ID: str, path: str, fov=120, heading=0):
         """
         Pull an image from google streetview 
         """
+        # Parameters for API request
         pic_params = {'key': self.api_key,
-                    'location': coords.to_string(),
-                    'size': self.pic_size,
-                    'fov': fov,
-                    'heading': heading,
-                    'return_error_code': True}
-            
+                        'size': self.pic_size,
+                        'fov': fov,
+                        'heading': heading,
+                        'return_error_code': True}
+        
+        # Add either coordinate location or pano ID depending on what's provided
+        if coords:
+            pic_params['location'] = coords.to_string()
+        else: 
+            pic_params['pano'] = pano_ID
+
         # Try to fetch pic from API 
         response = self.get_response(pic_params, 'https://maps.googleapis.com/maps/api/streetview?')
         
