@@ -12,36 +12,42 @@ class coord:
         self.lat = lat
         self.lon = lon
     
-    def to_dict(self):
-        return {'lat': self.lat, 'lng':self.lon}
+    def to_string(self):
+        return f"{self.lat},{self.lon}"
     
 class streetview:
     # Parameters for all pics 
     pic_size = "500x500"
-    pic_base = 'https://maps.googleapis.com/maps/api/streetview?'
-    metadata_base = 'https://maps.googleapis.com/maps/api/streetview/metadata?'
 
     def __init__(self, folder_path: str):
         # Read API key 
         self.api_key = open("api_key.txt", "r").read()
         self.maps_cli = googlemaps.Client(key=self.api_key)
-
+        
         # Set up params
         self.folder_path = folder_path
 
-    def improve_coordinates(self, coords: coord, radius=10):
+    def improve_coordinates(self, coords: coord, radius=100):
         """
         Pull Google's coordinates for a bus stop in the event that the provided coordinates suck
         """
         # Send request
-        result = places.places_nearby(
-            client=self.maps_cli, 
-            location=coords.to_dict(),
-            radius=radius,
-            type="bus_stop",
-        )
-        updated_coords = result['results'][0].get("geometry").get("location")
-        return coord(updated_coords["lat"], updated_coords["lng"])
+        params = {
+            'location': coords.to_string(),
+            'radius': radius,
+            'type': 'transit_station',
+            'key': self.api_key,
+            'maxResultCount': 1
+        }
+        response = self.get_response(params, 'https://maps.googleapis.com/maps/api/place/nearbysearch/json')
+
+        results = response.json().get('results', [])
+        if results:
+            nearest = results[0]
+            location = nearest['geometry']['location']
+            return coord(location['lat'], location['lon'])
+        else: 
+            raise f"No nearby bus stop found for {coords.to_string()}"
     
     def get_pano_coords(self, coords: coord):
         """
@@ -49,15 +55,12 @@ class streetview:
         """
         # Params for request
         params = {
-            'location': f"{coords.lat},{coords.lon}",
+            'location': coords.to_string(),
             'key': self.api_key
         }
 
         # Send a request, except faulty responses
-        try: 
-            response = requests.get(self.metadata_base, params)
-        except requests.exceptions.RequestException as e: 
-            print(f"Requesting metadata for image at {coords.lat}, {coords.lon} failed:", e)
+        response = self.get_response(params, 'https://maps.googleapis.com/maps/api/streetview/metadata?')
         
         # Fetch the coordinates from the json response and store in a coords class instance
         pano_location = response.json().get("location")
@@ -89,26 +92,22 @@ class streetview:
         """
         Pull an image from google streetview 
         """
-        location = f"{coords.lat},{coords.lon}"
         pic_params = {'key': self.api_key,
-                    'location': location,
+                    'location': coords.to_string(),
                     'size': self.pic_size,
                     'fov': fov,
                     'heading': heading,
                     'return_error_code': True}
             
         # Try to fetch pic from API 
-        try: 
-            response = requests.get(self.pic_base, params=pic_params)
-        except requests.exceptions.RequestException as e: 
-            print(f"Failed to pull image at coords {coords.lat}, {coords.lon}: {e}")
+        response = self.get_response(pic_params, 'https://maps.googleapis.com/maps/api/streetview?')
         
         # Make folder if it doesn't exist
         if not os.path.exists(path):
             os.makedirs(path)
         
         # Write this image segment into the temp folder
-        image_path = path + "/" + f"{coords.lat}{coords.lon}"+".jpg"
+        image_path = path + "/" + f"{coords.to_string()}"+".jpg"
         with open(image_path, "wb") as file:
             file.write(response.content)
 
@@ -151,6 +150,16 @@ class streetview:
             os.makedirs(self.folder_path)
         path = os.getcwd() + "/" + self.folder_path + "/" + name
         cv2.imwrite(path, stitched_image)
+    
+    def get_response(self, params, base):
+        # Issue request 
+        response = requests.get(base, params=params)
+
+         # Check if the request was successful
+        if response.status_code == 200:
+            return response
+        else:
+            raise f"Error ({response.status_code}): {response.text}"
         
 class yolo:
     # Constants
