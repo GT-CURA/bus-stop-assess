@@ -1,15 +1,19 @@
-import pandas as pd
 import requests
 import os
 import cv2
 import numpy as np
 import onnxruntime as ort
 import math
+import googlemaps
+import googlemaps.places as places
 
 class coord:
     def __init__(self, lat: float, lon: float):
         self.lat = lat
         self.lon = lon
+    
+    def to_dict(self):
+        return {'lat': self.lat, 'lng':self.lon}
     
 class streetview:
     # Parameters for all pics 
@@ -17,14 +21,10 @@ class streetview:
     pic_base = 'https://maps.googleapis.com/maps/api/streetview?'
     metadata_base = 'https://maps.googleapis.com/maps/api/streetview/metadata?'
 
-    def __init__(self, folder_path):
-        """
-        Args:
-            lat_col (string): Name of the column containing latitude coordinates
-            lon_col (string): Name of the column containing longtitude coordinates
-            id_col (string): Name of the column containing bus stop IDs """
+    def __init__(self, folder_path: str):
         # Read API key 
         self.api_key = open("api_key.txt", "r").read()
+        self.maps_cli = googlemaps.Client(key=self.api_key)
 
         # Set up params
         self.folder_path = folder_path
@@ -33,33 +33,15 @@ class streetview:
         """
         Pull Google's coordinates for a bus stop in the event that the provided coordinates suck
         """
-        # Set area in which bus stop must be found
-        location_restriction = {
-            'circle':{
-                'center':{
-                    "latitude": coords.lat,
-                    'longitude': coords.lon,
-                },
-                'radius': radius
-            }
-        }
-
-        # Parameters for request
-        params = {
-            'includedTypes': "bus_stop",
-            'rankPrefence':"DISTANCE",
-            'location_restriction': location_restriction,
-            'maxResultCount': 1
-        }
-
         # Send request
-        try: 
-            response = requests.get(self.pic_base, params=params)
-        except requests.exceptions.RequestException as e: 
-            print(f"Improving coordinates for {coords.lon}, {coords.lat} failed:",e)
-
-        # Pull coordinates from response
-        response.content["places"]
+        result = places.places_nearby(
+            client=self.maps_cli, 
+            location=coords.to_dict(),
+            radius=radius,
+            type="bus_stop",
+        )
+        updated_coords = result['results'][0].get("geometry").get("location")
+        return coord(updated_coords["lat"], updated_coords["lng"])
     
     def get_pano_coords(self, coords: coord):
         """
@@ -178,7 +160,7 @@ class yolo:
     scoreThreshold = 0.2
     class_names = ["Seating", "Shelter", "Signage", "Trash Can"] 
 
-    def run(self, image_path):
+    def run(self, image_path: str):
         # Start model sessions
         session = ort.InferenceSession("models/attempt-2.onnx")
         nms = ort.InferenceSession("models/nms-yolov8.onnx")

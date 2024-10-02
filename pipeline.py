@@ -9,16 +9,21 @@ bus_stops = pd.read_csv("data/atl/MARTA_cleaned.csv")
 # pull pano coord from metadata (Free!!) -> pull image from google streetview API -> stitch (if needed)
 
 # Create test coordinates
-test_coords = coord(33.781825, -84.407667)
+northside = coord(33.781825, -84.407667)
+#JOSEPH E LOWERY BLVD @ SELLS AVE SW
+#joe = coord(33.745587, -84.417784)
 
 # Create new instance of streetview tools
 instance = streetview("test")
 
+# Get coordiantes from google maps' nearby feature 
+improved_coords = instance.improve_coordinates(northside)
+
 # Calculate heading for this bus stop
-heading = instance.get_heading(test_coords)
+heading = instance.get_heading(improved_coords)
 
 # Pull image of bus stop 
-instance.pull_image(test_coords, "test", heading=heading)
+instance.pull_image(improved_coords, "test", heading=heading)
 
 # Gather all standalone bus stops
-standalone = bus_stops[(bus_stops["Shelter"] == "No") & (bus_stops["Seating"] != "No, there is no seating")]
+print("done")
