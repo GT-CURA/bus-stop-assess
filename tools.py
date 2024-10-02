@@ -23,29 +23,33 @@ class streetview:
         # Read API key 
         self.api_key = open("api_key.txt", "r").read()
         self.maps_cli = googlemaps.Client(key=self.api_key)
-        
+
         # Set up params
         self.folder_path = folder_path
 
-    def improve_coordinates(self, coords: coord, radius=100):
+    def improve_coordinates(self, coords: coord, radius=500):
         """
         Pull Google's coordinates for a bus stop in the event that the provided coordinates suck
         """
-        # Send request
-        params = {
-            'location': coords.to_string(),
-            'radius': radius,
-            'type': 'transit_station',
-            'key': self.api_key,
-            'maxResultCount': 1
-        }
-        response = self.get_response(params, 'https://maps.googleapis.com/maps/api/place/nearbysearch/json')
+        # New API only accepts coordinates in a dict
+        location = {
+            'lat':coords.lat,
+            'lng':coords.lon,
+        } 
 
-        results = response.json().get('results', [])
-        if results:
-            nearest = results[0]
-            location = nearest['geometry']['location']
-            return coord(location['lat'], location['lon'])
+        # Send request 
+        results = places.places_nearby(
+            client=self.maps_cli, 
+            location=location,
+            radius=radius,
+            type="bus_station",
+        )
+        
+        # Get coordinates from response if they exist 
+        if results['results']: 
+            nearest_stop = results['results'][0]
+            updated_coords = nearest_stop.get("geometry").get("location")
+            return coord(updated_coords["lat"], updated_coords["lng"])
         else: 
             raise f"No nearby bus stop found for {coords.to_string()}"
     
