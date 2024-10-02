@@ -31,25 +31,20 @@ class streetview:
         """
         Pull Google's coordinates for a bus stop in the event that the provided coordinates suck
         """
-        # New API only accepts coordinates in a dict
-        location = {
-            'lat':coords.lat,
-            'lng':coords.lon,
-        } 
+        params = {
+            'location': coords.to_string(),
+            'keyword':'bus stop',
+            'key': self.api_key,
+            'rankby':'distance',
+            'maxResultCount': 1
+        }
+        response = self.get_response(params, 'https://maps.googleapis.com/maps/api/place/nearbysearch/json')
 
-        # Send request 
-        results = places.places_nearby(
-            client=self.maps_cli, 
-            location=location,
-            radius=radius,
-            type="bus_station",
-        )
-        
-        # Get coordinates from response if they exist 
-        if results['results']: 
-            nearest_stop = results['results'][0]
-            updated_coords = nearest_stop.get("geometry").get("location")
-            return coord(updated_coords["lat"], updated_coords["lng"])
+        results = response.json().get('results', [])
+        if results:
+            nearest = results[0]
+            location = nearest['geometry']['location']
+            return coord(location['lat'], location['lng'])
         else: 
             raise f"No nearby bus stop found for {coords.to_string()}"
     
@@ -78,13 +73,15 @@ class streetview:
         # Determine the panorama's coords 
         pano_coords = self.get_pano_coords(coords)
         
-        d_lng = math.radians(coords.lon - pano_coords.lon)
+        # Convert to radians 
+        diff_lon = math.radians(coords.lon - pano_coords.lon)
         lat1 = math.radians(pano_coords.lat)
         lat2 = math.radians(coords.lat)
 
-        x = math.sin(d_lng) * math.cos(lat2)
-        y = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(d_lng)
-        
+        # Determine degree
+        x = math.sin(diff_lon) * math.cos(lat2)
+        y = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(diff_lon)
+    
         initial_bearing = math.atan2(x, y)
         
         # Convert radians to degrees and normalize to 0-360 degrees

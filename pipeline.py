@@ -14,22 +14,28 @@ imwrite("output/sign.png",output)
 """
 
 # NORTHSIDE DR @ 10th 
-northside = coord(33.781825, -84.407667)
+tenth = coord(33.781825, -84.407667)
+
+# NORTHSIDE DR @ 14th
+fourteenth = coord(33.785674, -84.407509) 
 
 #JOSEPH E LOWERY BLVD @ SELLS AVE SW
 joe = coord(33.745587, -84.417784)
+
+# ROSWELL RD NE@SPALDING DR NE
+roswell = coord(33.945827, -84.370956)
 
 # Create new instance of streetview tools
 instance = streetview("test")
 
 # Get coordiantes from google maps' nearby feature 
-improved_coords = instance.improve_coordinates(northside, radius=500)
+improved_coords = instance.improve_coordinates(roswell, radius=500)
 
 # Calculate heading for this bus stop
 heading = instance.get_heading(improved_coords)
 
 # Pull image of bus stop 
-instance.pull_image(improved_coords, "test", heading=heading)
+instance.pull_image(improved_coords, "test", 60, heading=heading)
 
 # Gather all standalone bus stops
 print("done")
