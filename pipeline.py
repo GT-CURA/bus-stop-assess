@@ -1,4 +1,4 @@
-from streetview import tools, coord, log
+from streetview import tools, coord, POI
 import yolo
 from cv2 import imwrite
 import pandas as pd 
@@ -27,19 +27,17 @@ sampled = shelters.sample(7)
 
 # Create new instances of streetview tools and log
 instance = tools("test")
-inst_log = log()
 
 def pull_row(row):
-    # Get--then improve--cordiantes 
-    coordiante = coord(row["Lat"], row["Lon"])
-    improved_coords = instance.improve_coordinates(coordiante, radius=100)
+    # Build POI, improve its coordinates
+    bus_stop = POI(row["Stop ID"], row["Lat"], row["Lon"], "bus stop")
+    instance.improve_coordinates(bus_stop)
 
     # Get pano ID, plug it into heading function
-    pano_coords, pano_ID = instance.pull_pano_info(improved_coords)
-    heading = instance.get_heading(improved_coords, pano_coords)
+    instance.set_heading(bus_stop)
 
     # Pull picture using pano ID found earlier
-    instance.pull_image(pano_ID=pano_ID, path="test", fov=80, heading=heading, coords=None)
+    instance.pull_image(bus_stop, "test/nyc")
     
 # Pull each row in sample
 sampled.apply(pull_row, axis=1)

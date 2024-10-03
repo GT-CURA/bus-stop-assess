@@ -13,6 +13,26 @@ class coord:
     def to_string(self):
         return f"{self.lat},{self.lon}"
 
+class POI:
+    pano_id: str
+    pano_coords: coord
+    updated_coords: coord
+    heading: float
+    fov: float
+
+    def __init__(self, id, lat: float, lon: float, key_word: str):
+        self.ID = id
+        self.coords = coord(lat, lon)
+        self.original_coords = self.coords
+        self.key_word = key_word
+
+    def get_log(self):
+        # Create dictionary with inputs, put into entries
+        entry = {'id': self.ID, 'pano_id': self.pano_id, 'pano_coords': self.pano_coords, 
+                 'original_coords': self.original_coords, 'updated_coords': self.updated_coords,
+                 'heading': self.heading, 'fov':self.fov}
+        return entry
+        
 class tools:
     # Parameters for all pics 
     pic_size = "500x500"
@@ -24,13 +44,13 @@ class tools:
         # Set up params
         self.folder_path = folder_path
     
-    def improve_coordinates(self, coords: coord, radius=500):
+    def improve_coordinates(self, poi: POI):
         """
         Pull Google's coordinates for a bus stop in the event that the provided coordinates suck
         """
         params = {
-            'location': coords.to_string(),
-            'keyword':'bus stop',
+            'location': poi.coords.to_string(),
+            'keyword':poi.key_word,
             'key': self.api_key,
             'rankby':'distance',
             'maxResultCount': 1
@@ -43,15 +63,15 @@ class tools:
             location = nearest['geometry']['location']
             return coord(location['lat'], location['lng'])
         else: 
-            raise f"No nearby bus stop found for {coords.to_string()}"
+            raise f"No nearby {poi.key_word} found for {poi.coords.to_string()}"
     
-    def pull_pano_info(self, coords: coord):
+    def pull_pano_info(self, poi: POI):
         """
         Extract coordiantes from a pano's metadata, used to determine heading
         """
         # Params for request
         params = {
-            'location': coords.to_string(),
+            'location': poi.coords.to_string(),
             'key': self.api_key
         }
 
@@ -60,18 +80,20 @@ class tools:
         
         # Fetch the coordinates from the json response and store in a coords class instance
         pano_location = response.json().get("location")
-        pano_coords = coord(pano_location["lat"], pano_location["lng"])
-        pano_id = response.json().get("pano_id")
-        return pano_coords, pano_id
+        poi.pano_coords = coord(pano_location["lat"], pano_location["lng"])
+        poi.pano_id = response.json().get("pano_id")
     
-    def get_heading(self, coords: coord = None, pano_coords: coord = None):
+    def set_heading(self, poi: POI):
         """
         Use pano's coords to determine the necessary camera FOV.
         """
+        # Get the coordinates of the pano Google pics for this POI
+        self.pull_pano_info(poi)
+
         # Convert to radians 
-        diff_lon = math.radians(coords.lon - pano_coords.lon)
-        lat1 = math.radians(pano_coords.lat)
-        lat2 = math.radians(coords.lat)
+        diff_lon = math.radians(poi.coords.lon - poi.pano_coords.lon)
+        lat1 = math.radians(poi.pano_coords.lat)
+        lat2 = math.radians(poi.coords.lat)
 
         # Determine degree
         x = math.sin(diff_lon) * math.cos(lat2)
@@ -82,26 +104,26 @@ class tools:
         # Convert radians to degrees and normalize to 0-360 degrees
         initial_bearing = math.degrees(initial_bearing)
         compass_bearing = (initial_bearing + 360) % 360
-        return compass_bearing
+        poi.heading = compass_bearing
 
-    def pull_image(self, coords: coord, pano_ID: str, path: str, fov=120, heading=0):
+    def pull_image(self, poi: POI, path: str):
         """
         Pull an image from google streetview 
         """
         # Parameters for API request
         pic_params = {'key': self.api_key,
                         'size': self.pic_size,
-                        'fov': fov,
-                        'heading': heading,
+                        'fov': poi.fov,
+                        'heading': poi.heading,
                         'return_error_code': True}
         
-        # Add either coordinate location or pano ID depending on what's provided
-        if coords:
-            pic_params['location'] = coords.to_string()
-            image_path = path + "/" + f"{coords.to_string()}"+".jpg"
+        # Add either coordinate location or pano ID depending on what's in the POI
+        if poi.pano_id:
+            pic_params['pano'] = poi.pano_id
+            image_path = path + "/" + f"{poi.pano_id}"+".jpg"
         else: 
-            pic_params['pano'] = pano_ID
-            image_path = path + "/" + f"{pano_ID}"+".jpg"
+            pic_params['location'] = poi.coords.to_string()
+            image_path = path + "/" + f"{poi.coords.to_string()}"+".jpg"
 
         # Try to fetch pic from API 
         response = self.get_response(pic_params, 'https://maps.googleapis.com/maps/api/streetview?')
@@ -118,7 +140,7 @@ class tools:
         response.close()
         return image_path
 
-    def pull_pano(self, coords: coord, num_pics=8):
+    def pull_pano(self, poi: POI, num_pics=8):
         """
         Given a dataframe of coordinates, pulls a panorama of each coordinate from Google Streetview. 
         Pulls num_pics many images and stitches them together into a panorama. 
@@ -128,11 +150,13 @@ class tools:
             folder_name (string): Name of the output folder
         """
         image_paths = []
+        poi.fov = 360/num_pics
 
         # Capture 'num_pics' many photos
         for degree in range(0, 360, int(360/num_pics)):
             # Save image into temp folder, get its path
-            image_paths.append(self.pull_image(coords.lat, coords.lon, "temp", 360/num_pics, degree))
+            poi.heading = degree
+            image_paths.append(self.pull_image(poi, "temp"))
         
         # Stitch all the images of this bus stop together
         self.stitch_images(image_paths)
@@ -164,17 +188,3 @@ class tools:
         else:
             raise f"Error ({response.status_code}): {response.text}"
 
-class log:
-    entries: pd.DataFrame
-    def add_entry(self, id: str, pano_id: str, pano_coords: coord,
-                   original_coords: coord, updated_coords: coord, 
-                   heading: int, fov:int,):
-        
-        # Create dictionary with inputs, put into entries
-        entry = {'id': id, 'pano_id': pano_id, 'pano_coords': pano_coords, 
-                 'original_coords': original_coords, 'updated_coords': updated_coords,
-                 'heading': heading, 'fov':fov}
-        self.entries.add(entry)
-    
-    def write_csv(self, path: str):
-        self.entries.to_csv(path)
