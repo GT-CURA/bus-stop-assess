@@ -5,3 +5,4 @@ script.py
 *.onnx
 *.png
 *.pyc
+log.csv

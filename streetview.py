@@ -16,7 +16,6 @@ class coord:
 class POI:
     pano_id: str
     pano_coords: coord
-    updated_coords: coord
     heading: float
     fov: float
 
@@ -28,12 +27,12 @@ class POI:
 
     def get_log(self):
         # Create dictionary with inputs, put into entries
-        entry = {'id': self.ID, 'pano_id': self.pano_id, 'pano_coords': self.pano_coords, 
-                 'original_coords': self.original_coords, 'updated_coords': self.updated_coords,
+        entry = {'id': self.ID, 'pano_id': self.pano_id, 'pano_coords': self.pano_coords.to_string, 
+                 'original_coords': self.original_coords.to_string, 'updated_coords':self.coords, 
                  'heading': self.heading, 'fov':self.fov}
         return entry
-        
-class tools:
+
+class Session:
     # Parameters for all pics 
     pic_size = "500x500"
 
@@ -41,8 +40,13 @@ class tools:
         # Read API key 
         self.api_key = open("api_key.txt", "r").read()
 
-        # Set up params
+        # Store folder path and create it if it doesn't exist
         self.folder_path = folder_path
+        if not os.path.exists(self.folder_path):
+            os.makedirs(self.folder_path)
+        
+        # Create log for this session, start clock
+        self.log = []
     
     def improve_coordinates(self, poi: POI):
         """
@@ -55,13 +59,15 @@ class tools:
             'rankby':'distance',
             'maxResultCount': 1
         }
-        response = self.get_response(params, 'https://maps.googleapis.com/maps/api/place/nearbysearch/json')
+        response = self.pull_response(params, 'https://maps.googleapis.com/maps/api/place/nearbysearch/json')
 
         results = response.json().get('results', [])
         if results:
             nearest = results[0]
             location = nearest['geometry']['location']
-            return coord(location['lat'], location['lng'])
+            updated_coord = coord(location['lat'], location['lng'])
+            poi.coords = updated_coord
+
         else: 
             raise f"No nearby {poi.key_word} found for {poi.coords.to_string()}"
     
@@ -76,7 +82,7 @@ class tools:
         }
 
         # Send a request, except faulty responses
-        response = self.get_response(params, 'https://maps.googleapis.com/maps/api/streetview/metadata?')
+        response = self.pull_response(params, 'https://maps.googleapis.com/maps/api/streetview/metadata?')
         
         # Fetch the coordinates from the json response and store in a coords class instance
         pano_location = response.json().get("location")
@@ -106,10 +112,13 @@ class tools:
         compass_bearing = (initial_bearing + 360) % 360
         poi.heading = compass_bearing
 
-    def pull_image(self, poi: POI, path: str):
+    def pull_image(self, poi: POI, fov: int):
         """
         Pull an image from google streetview 
         """
+        # Set POI's FOV 
+        poi.fov = fov
+
         # Parameters for API request
         pic_params = {'key': self.api_key,
                         'size': self.pic_size,
@@ -120,21 +129,20 @@ class tools:
         # Add either coordinate location or pano ID depending on what's in the POI
         if poi.pano_id:
             pic_params['pano'] = poi.pano_id
-            image_path = path + "/" + f"{poi.pano_id}"+".jpg"
+            image_path = self.folder_path + "/" + f"{poi.pano_id}"+".jpg"
         else: 
             pic_params['location'] = poi.coords.to_string()
-            image_path = path + "/" + f"{poi.coords.to_string()}"+".jpg"
+            image_path = self.folder_path + "/" + f"{poi.coords.to_string()}"+".jpg"
 
         # Try to fetch pic from API 
-        response = self.get_response(pic_params, 'https://maps.googleapis.com/maps/api/streetview?')
-        
-        # Make folder if it doesn't exist
-        if not os.path.exists(path):
-            os.makedirs(path)
+        response = self.pull_response(pic_params, 'https://maps.googleapis.com/maps/api/streetview?')
         
         # Write this image segment into the temp folder
         with open(image_path, "wb") as file:
             file.write(response.content)
+
+        # Write this POI's log into the entries 
+        self.log.append(poi.get_log())
 
         # Close response, return new image's path
         response.close()
@@ -178,7 +186,12 @@ class tools:
         path = os.getcwd() + "/" + self.folder_path + "/" + name
         imwrite(path, stitched_image)
     
-    def get_response(self, params, base):
+    def write_log(self):
+        log_df = pd.DataFrame(self.log)
+        log_path = self.folder_path + "/log.csv"
+        log_df.to_csv(log_path)
+        
+    def pull_response(self, params, base):
         # Issue request 
         response = requests.get(base, params=params)
 

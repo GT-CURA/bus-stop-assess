@@ -1,4 +1,4 @@
-from streetview import tools, coord, POI
+from streetview import POI, coord, Session
 import yolo
 from cv2 import imwrite
 import pandas as pd 
@@ -21,12 +21,13 @@ fourteenth = coord(33.785674, -84.407509) # NORTHSIDE DR @ 14th
 joe = coord(33.745587, -84.417784) #JOSEPH E LOWERY BLVD @ SELLS AVE SW
 roswell = coord(33.945827, -84.370956) # ROSWELL RD NE@SPALDING DR NE
 
-# Select shelters
-shelters = bus_stops[bus_stops["Bus Stop Type"] == "Shelter"]
-sampled = shelters.sample(7)
+# Select signs
+signs = bus_stops[bus_stops["Bus Stop Type"] == "Shelter"]
+sampled = signs.sample(10)
 
 # Create new instances of streetview tools and log
-instance = tools("test")
+instance = Session("test/atl/shelters")
+log_entries = []
 
 def pull_row(row):
     # Build POI, improve its coordinates
@@ -37,10 +38,16 @@ def pull_row(row):
     instance.set_heading(bus_stop)
 
     # Pull picture using pano ID found earlier
-    instance.pull_image(bus_stop, "test/nyc")
+    instance.pull_image(bus_stop, 80)
     
+    # Get log entry for this POI 
+    log_entries.append(bus_stop.get_log())
+
 # Pull each row in sample
 sampled.apply(pull_row, axis=1)
+
+# Write log 
+instance.write_log()
 
 # Gather all standalone bus stops
 print("done")
