@@ -3,6 +3,7 @@ import os
 import math
 from cv2 import imwrite, imread
 import numpy as np
+import pandas as pd
 
 class coord:
     def __init__(self, lat: float, lon: float):
@@ -11,7 +12,7 @@ class coord:
     
     def to_string(self):
         return f"{self.lat},{self.lon}"
-    
+
 class tools:
     # Parameters for all pics 
     pic_size = "500x500"
@@ -162,4 +163,18 @@ class tools:
             return response
         else:
             raise f"Error ({response.status_code}): {response.text}"
+
+class log:
+    entries: pd.DataFrame
+    def add_entry(self, id: str, pano_id: str, pano_coords: coord,
+                   original_coords: coord, updated_coords: coord, 
+                   heading: int, fov:int,):
         
+        # Create dictionary with inputs, put into entries
+        entry = {'id': id, 'pano_id': pano_id, 'pano_coords': pano_coords, 
+                 'original_coords': original_coords, 'updated_coords': updated_coords,
+                 'heading': heading, 'fov':fov}
+        self.entries.add(entry)
+    
+    def write_csv(self, path: str):
+        self.entries.to_csv(path)

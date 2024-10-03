@@ -1,4 +1,5 @@
-from tools import streetview, coord, yolo
+from streetview import tools, coord, log
+import yolo
 from cv2 import imwrite
 import pandas as pd 
 
@@ -24,8 +25,9 @@ roswell = coord(33.945827, -84.370956) # ROSWELL RD NE@SPALDING DR NE
 shelters = bus_stops[bus_stops["Bus Stop Type"] == "Shelter"]
 sampled = shelters.sample(7)
 
-# Create new instance of streetview tools
-instance = streetview("test")
+# Create new instances of streetview tools and log
+instance = tools("test")
+inst_log = log()
 
 def pull_row(row):
     # Get--then improve--cordiantes 
@@ -38,7 +40,7 @@ def pull_row(row):
 
     # Pull picture using pano ID found earlier
     instance.pull_image(pano_ID=pano_ID, path="test", fov=80, heading=heading, coords=None)
-
+    
 # Pull each row in sample
 sampled.apply(pull_row, axis=1)
 
