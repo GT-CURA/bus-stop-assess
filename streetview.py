@@ -27,8 +27,10 @@ class POI:
 
     def get_log(self):
         # Create dictionary with inputs, put into entries
-        entry = {'id': self.ID, 'pano_id': self.pano_id, 'pano_coords': self.pano_coords.to_string, 
-                 'original_coords': self.original_coords.to_string, 'updated_coords':self.coords, 
+        entry = {'id': self.ID, 'pano_id': self.pano_id, 
+                 'pano_lat': self.pano_coords.lat, 'pano_lon':self.pano_coords.lon, 
+                 'original_lat': self.original_coords.lat, 'original_lon':self.original_coords.lon,
+                 'updated_lat':self.coords.lat,'updated_lon':self.coords.lon, 
                  'heading': self.heading, 'fov':self.fov}
         return entry
 
@@ -36,9 +38,12 @@ class Session:
     # Parameters for all pics 
     pic_size = "500x500"
 
-    def __init__(self, folder_path: str):
+    def __init__(self, folder_path: str, debug=False):
         # Read API key 
         self.api_key = open("api_key.txt", "r").read()
+
+        # Set debug mode
+        self.debug = debug
 
         # Store folder path and create it if it doesn't exist
         self.folder_path = folder_path
@@ -59,6 +64,7 @@ class Session:
             'rankby':'distance',
             'maxResultCount': 1
         }
+        if self.debug: print(f"Pulling nearby search results for {poi.coords.to_string()}")
         response = self.pull_response(params, 'https://maps.googleapis.com/maps/api/place/nearbysearch/json')
 
         results = response.json().get('results', [])
@@ -82,6 +88,7 @@ class Session:
         }
 
         # Send a request, except faulty responses
+        if self.debug: print(f"Pulling metadata for {poi.coords.to_string()}")
         response = self.pull_response(params, 'https://maps.googleapis.com/maps/api/streetview/metadata?')
         
         # Fetch the coordinates from the json response and store in a coords class instance
@@ -134,7 +141,8 @@ class Session:
             pic_params['location'] = poi.coords.to_string()
             image_path = self.folder_path + "/" + f"{poi.coords.to_string()}"+".jpg"
 
-        # Try to fetch pic from API 
+        # Try to fetch pic from API
+        if self.debug: print(f"Pulling image for {poi.coords.to_string()}")
         response = self.pull_response(pic_params, 'https://maps.googleapis.com/maps/api/streetview?')
         
         # Write this image segment into the temp folder

@@ -1,37 +1,25 @@
 from streetview import POI, coord, Session
-import yolo
+from yolo import yolo
 from cv2 import imwrite
 import pandas as pd 
 
 # Read MARTA's inventory of bus stops 
 bus_stops = pd.read_csv("data/atl/MARTA_cleaned.csv")
 
-"""
-# Before I forget: 
-# pull coord from csv -> use nearby API to find precise coordinates of bus stop (if needed) -> 
-# pull pano coord from metadata (Free!!) -> pull image from google streetview API -> stitch (if needed)
-yolo_instance = yolo()
-output = yolo_instance.run("manual_pics/sign.png")
-imwrite("output/sign.png",output)
-"""
-
-# Temporary test coordinates
-tenth = coord(33.781825, -84.407667) # NORTHSIDE DR @ 10th 
-fourteenth = coord(33.785674, -84.407509) # NORTHSIDE DR @ 14th
-joe = coord(33.745587, -84.417784) #JOSEPH E LOWERY BLVD @ SELLS AVE SW
-roswell = coord(33.945827, -84.370956) # ROSWELL RD NE@SPALDING DR NE
+# Read NYC's bus shelter inventory
+bus_shelters_nyc = pd.read_csv("data/nyc/Bus_Stop_Shelter.csv")
 
 # Select signs
-signs = bus_stops[bus_stops["Bus Stop Type"] == "Shelter"]
-sampled = signs.sample(10)
+shelters = bus_stops[bus_stops["Bus Stop Type"] == "Bench"]
+sampled = bus_shelters_nyc[9:100]
 
 # Create new instances of streetview tools and log
-instance = Session("test/atl/shelters")
+instance = Session("test/nyc", debug=True)
 log_entries = []
 
 def pull_row(row):
     # Build POI, improve its coordinates
-    bus_stop = POI(row["Stop ID"], row["Lat"], row["Lon"], "bus stop")
+    bus_stop = POI(row["Shelter_ID"], row["Latitude"], row["Longitude"], "bus stop")
     instance.improve_coordinates(bus_stop)
 
     # Get pano ID, plug it into heading function
