@@ -18,6 +18,7 @@ class POI:
     pano_coords: coord
     heading: float
     fov: float
+    error: str
 
     def __init__(self, id, lat: float, lon: float, key_word: str):
         self.ID = id
@@ -38,9 +39,9 @@ class Session:
     # Parameters for all pics 
     pic_size = "500x500"
 
-    def __init__(self, folder_path: str, debug=False):
+    def __init__(self, folder_path: str, debug=False, key_path="keys/streetview.txt"):
         # Read API key 
-        self.api_key = open("api_key.txt", "r").read()
+        self.api_key = open(key_path, "r").read()
 
         # Set debug mode
         self.debug = debug
@@ -200,9 +201,11 @@ class Session:
         log_df.to_csv(log_path)
         
     def pull_response(self, params, base):
-        # Issue request 
-        response = requests.get(base, params=params)
-
+        # Issue request, except timeout
+        try:
+            response = requests.get(base, params=params, timeout=10)
+        except requests.exceptions.Timeout: 
+            print(f"Request timed out!")
          # Check if the request was successful
         if response.status_code == 200:
             return response

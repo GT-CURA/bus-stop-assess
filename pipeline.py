@@ -1,25 +1,28 @@
 from streetview import POI, coord, Session
-from yolo import yolo
-from cv2 import imwrite
-import pandas as pd 
+import pandas as pd
+from models import BusStopCV, yolo
+
+model = yolo()
+pics = ["manual_pics/10th.png", "manual_pics/seattle_complete.png"]
+model.infer(pics)
 
 # Read MARTA's inventory of bus stops 
-bus_stops = pd.read_csv("data/atl/MARTA_cleaned.csv")
+bus_stops_atl = pd.read_csv("data/atl/MARTA_cleaned.csv")
 
 # Read NYC's bus shelter inventory
 bus_shelters_nyc = pd.read_csv("data/nyc/Bus_Stop_Shelter.csv")
 
 # Select signs
-shelters = bus_stops[bus_stops["Bus Stop Type"] == "Bench"]
-sampled = bus_shelters_nyc[9:100]
+shelters = bus_stops_atl[bus_stops_atl["Bus Stop Type"] == "Shelter"]
+sampled = shelters[63:200]
 
 # Create new instances of streetview tools and log
-instance = Session("test/nyc", debug=True)
+instance = Session("test/atl/shelters", debug=True)
 log_entries = []
 
 def pull_row(row):
     # Build POI, improve its coordinates
-    bus_stop = POI(row["Shelter_ID"], row["Latitude"], row["Longitude"], "bus stop")
+    bus_stop = POI(row["Stop ID"], row["Lat"], row["Lon"], "bus stop")
     instance.improve_coordinates(bus_stop)
 
     # Get pano ID, plug it into heading function
@@ -36,6 +39,4 @@ sampled.apply(pull_row, axis=1)
 
 # Write log 
 instance.write_log()
-
-# Gather all standalone bus stops
 print("done")
