@@ -16,11 +16,12 @@ class BusStopCV:
     scoreThreshold = 0.2
     class_names = ["Seating", "Shelter", "Signage", "Trash Can"] 
 
+    def __init__(self):
+        # Set up models
+        self.model = ort.InferenceSession("models/attempt-2.onnx")
+        self.nms = ort.InferenceSession("models/nms-yolov8.onnx")
+
     def infer(self, image_path: str):
-        # Start model sessions
-        session = ort.InferenceSession("models/attempt-2.onnx")
-        nms = ort.InferenceSession("models/nms-yolov8.onnx")
-        
         # Read image, store dimensions
         image = cv2.imread(image_path)  
         self.original_height, self.original_width = image.shape[:2]
@@ -30,8 +31,8 @@ class BusStopCV:
 
         # Run models
         config = np.array([self.topk, self.iouThreshold, self.scoreThreshold])
-        output = session.run(None, {"images": processed_image})
-        selected = nms.run(None, {"detection": output[0], "config": config.astype(np.float32)})
+        output = self.model.run(None, {"images": processed_image})
+        selected = self.nms.run(None, {"detection": output[0], "config": config.astype(np.float32)})
 
         # Get and draw boxes on the original image size
         boxes = self.get_boxes(selected[0])
@@ -67,10 +68,10 @@ class BusStopCV:
             borderType = cv2.BORDER_CONSTANT, 
             value = (114, 114, 114))
 
-        # Normalize and prepare for model input
-        padded_image = padded_image.astype(np.float32) / 255.0    # Normalize image
-        padded_image = np.expand_dims(padded_image, axis=0)       # Add batch dimension
-        padded_image = np.transpose(padded_image, (0, 3, 1, 2))  # Rearrange to (1, 3, 640, 640)
+        # Normalize, expand dimensions, transpose
+        padded_image = padded_image.astype(np.float32) / 255.0    
+        padded_image = np.expand_dims(padded_image, axis=0)       
+        padded_image = np.transpose(padded_image, (0, 3, 1, 2))  
 
         # Return the preprocessed image and scaling factors for post-processing
         self.scale_x = width / new_width
@@ -85,12 +86,12 @@ class BusStopCV:
             data = selected[0, i, :]
             x, y, w, h = data[:4]
 
-            # Maximum probability score and corresponding label
+            # Get max score and corresponding label
             scores = data[4:]
             score = np.max(scores)
             label = np.argmax(scores)
 
-            # Convert the box coordinates from 640x640 space to the padded image space
+            # Convert box coordinates 
             x1, y1 = x - w / 2, y - h / 2
             x2, y2 = x + w / 2, y + h / 2
 
@@ -100,7 +101,7 @@ class BusStopCV:
             x2 = int((x2 - self.x_pad) * self.scale_x)
             y2 = int((y2 - self.y_pad) * self.scale_y)
 
-            # Add to boxes
+            # Add to box list
             boxes.append({
                 "label": label, 
                 "prob": score, 
@@ -111,7 +112,10 @@ class BusStopCV:
     
     def draw_boxes(self, boxes, image):
         final = image
+
+        # Iterate through box list 
         for box in boxes:
+            # Extract bounds and draw onto inputted image
             bounds = box["bounds"]
             cv2.rectangle(final, (bounds[0], bounds[1]), (bounds[2], bounds[3]), (0, 255, 0), 2)
         
@@ -157,3 +161,16 @@ class yolo:
         model.export(format="onnx")
 
         #yolo task=detect mode=train model=yolo11n.pt data=/home/dev/src/gra/Bus-Stop-Classification/datasets/first/data.yaml epochs=300 imgsz=640 workers=0 patience=100 plots=True
+
+    def to_onnx(self):
+        self.model.export(format="onnx")
+    
+    def deploy_to_roboflow(self, model_path):
+        # configure roboflow 
+        key = open("keys/roboflow.txt", "r").read()
+        rf = Roboflow(api_key=key)
+        project = rf.workspace("brycetjones").project("bus-stop-classification")
+        version = project.version(1)
+
+        # Deploy model to roboflow
+        version.deploy("yolov11", model_path, "best.pt")

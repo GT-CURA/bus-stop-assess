@@ -3,8 +3,7 @@ import pandas as pd
 from models import BusStopCV, yolo
 
 model = yolo()
-pics = ["manual_pics/10th.png", "manual_pics/seattle_complete.png"]
-model.infer(pics)
+model.deploy_to_roboflow()
 
 # Read MARTA's inventory of bus stops 
 bus_stops_atl = pd.read_csv("data/atl/MARTA_cleaned.csv")
