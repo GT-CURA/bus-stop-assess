@@ -1,0 +1,60 @@
+metadata:
+  name: bus-stop-detector
+  namespace: cvat
+  annotations:
+    name: YOLO v11
+    type: detector
+    spec: |
+      [
+        { "id": 0, "name": "seating", "type": "rectangle" },
+        { "id": 1, "name": "shelter", "type": "rectangle" },
+        { "id": 2, "name": "signage", "type": "rectangle" },
+        { "id": 3, "name": "trash", "type": "rectangle" }
+      ]
+
+spec:
+  description: YoloV11 trained to detect bus stop components
+  runtime: 'python:3.8'
+  handler: main:handler
+  eventTimeout: 30s
+  build:
+    image: cvat.yolov11:latest-gpu
+    baseImage: nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
+
+    directives:
+      preCopy:
+        - kind: USER
+          value: root
+        - kind: RUN
+          value: apt update && apt install --no-install-recommends -y wget python3-pip
+        - kind: RUN
+          value: apt-get update && apt-get install -y libgl1-mesa-glx
+        - kind: WORKDIR
+          value: /opt/nuclio
+        - kind: RUN
+          value: pip install ultralytics opencv-python-headless pillow pyyaml numpy
+        - kind: WORKDIR
+          value: /opt/nuclio
+        - kind: RUN
+          value: wget https://github.com/brycetjones/models/raw/refs/heads/main/best.onnx
+        - kind: RUN
+          value: ln -s /usr/bin/python3 /usr/bin/python
+
+  triggers:
+    myHttpTrigger:
+      maxWorkers: 1
+      kind: 'http'
+      workerAvailabilityTimeoutMilliseconds: 10000
+      attributes:
+        maxRequestBodySize: 33554432 # 32MB
+
+  resources:
+    limits:
+      nvidia.com/gpu: 1
+
+  platform:
+    attributes:
+      restartPolicy:
+        name: always
+        maximumRetryCount: 3
+      mountMode: volume

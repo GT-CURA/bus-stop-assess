@@ -132,7 +132,9 @@ class Session:
                         'size': self.pic_size,
                         'fov': poi.fov,
                         'heading': poi.heading,
-                        'return_error_code': True}
+                        'return_error_code': True,
+                        'outdoor': True,
+                        'size':"640x640"}
         
         # Add either coordinate location or pano ID depending on what's in the POI
         if poi.pano_id:
