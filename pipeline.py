@@ -2,6 +2,8 @@ from streetview import POI, coord, Session
 import pandas as pd
 from models import BusStopCV, yolo
 
+model = yolo()
+model.train()
 # Read MARTA's inventory of bus stops 
 bus_stops_atl = pd.read_csv("data/atl/MARTA_cleaned.csv")
 

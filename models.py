@@ -144,23 +144,23 @@ class yolo:
 
     def train(self):
         # Check hardware & load pre-trained model from ultralytics
-        ua.checks()
-        model = ua.YOLO("models/yolo11n.pt")
+        #ua.checks()
+        #model = ua.YOLO("models/yolo11n.pt")
 
         # Download dataset
         key = open("keys/roboflow.txt", "r").read()
         rf = Roboflow(api_key=key)
         project = rf.workspace("brycetjones").project("bus-stop-classification")
-        version = project.version(1)
-        dataset = version.download("yolov11", location="datasets/first")
+        version = project.version(2)
+        dataset = version.download("yolov11", location="datasets")
 
         # Train model, use patience param to stop after 100 epochs if performance isn't increasing 
-        results = model.train(data="first/data.yaml", epochs=300, imgsz=640, patience=100)
+        #results = model.train(data="first/data.yaml", epochs=300, imgsz=640, patience=100)
 
         # Export model 
-        model.export(format="onnx")
+        #model.export(format="onnx")
 
-        #yolo task=detect mode=train model=yolo11n.pt data=/home/dev/src/gra/Bus-Stop-Classification/datasets/first/data.yaml epochs=300 imgsz=640 workers=0 patience=100 plots=True
+
 
     def to_onnx(self):
         self.model.export(format="onnx")
