@@ -6,11 +6,18 @@ import numpy as np
 import pandas as pd
 
 class coord:
+    """
+    Represents a coordinate pair. 
+    Attributes: 
+        lat: Latitude coordinate as a float.
+        lon: Longitude coordinate as a float.
+    """
     def __init__(self, lat: float, lon: float):
         self.lat = lat
         self.lon = lon
     
     def to_string(self):
+        """Outputs coordinate pair as an f-string"""
         return f"{self.lat},{self.lon}"
 
 class POI:
@@ -19,6 +26,7 @@ class POI:
     heading: float
     fov: float
     error: str
+    num_imgs = 1
 
     def __init__(self, id, lat: float, lon: float, key_word: str):
         self.ID = id
@@ -26,9 +34,9 @@ class POI:
         self.original_coords = self.coords
         self.key_word = key_word
 
-    def get_log(self):
-        # Create dictionary with inputs, put into entries
-        entry = {'id': self.ID, 'pano_id': self.pano_id, 
+    def get_entry(self):
+        # Represents the row corresponding to this image in the log.
+        entry = {'id': self.ID, 'num_imgs':self.num_imgs, 'pano_id': self.pano_id, 
                  'pano_lat': self.pano_coords.lat, 'pano_lon':self.pano_coords.lon, 
                  'original_lat': self.original_coords.lat, 'original_lon':self.original_coords.lon,
                  'updated_lat':self.coords.lat,'updated_lon':self.coords.lon, 
@@ -37,7 +45,7 @@ class POI:
 
 class Session:
     # Parameters for all pics 
-    pic_size = "500x500"
+    pic_size = "640x640"
 
     def __init__(self, folder_path: str, debug=False, key_path="keys/streetview.txt"):
         # Read API key 
@@ -65,18 +73,24 @@ class Session:
             'rankby':'distance',
             'maxResultCount': 1
         }
+        
+        # Attempt to get a response from Google Maps API 
         if self.debug: print(f"Pulling nearby search results for {poi.coords.to_string()}")
         response = self.pull_response(params, 'https://maps.googleapis.com/maps/api/place/nearbysearch/json')
-
         results = response.json().get('results', [])
+
+        # Take the nearest result and use its coordinates
         if results:
             nearest = results[0]
             location = nearest['geometry']['location']
             updated_coord = coord(location['lat'], location['lng'])
             poi.coords = updated_coord
 
+        # Handle errors
         else: 
+            poi.error="Failed to update coords."
             raise f"No nearby {poi.key_word} found for {poi.coords.to_string()}"
+
     
     def pull_pano_info(self, poi: POI):
         """
@@ -92,7 +106,7 @@ class Session:
         if self.debug: print(f"Pulling metadata for {poi.coords.to_string()}")
         response = self.pull_response(params, 'https://maps.googleapis.com/maps/api/streetview/metadata?')
         
-        # Fetch the coordinates from the json response and store in a coords class instance
+        # Fetch the coordinates from the json response and store them in the POI
         pano_location = response.json().get("location")
         poi.pano_coords = coord(pano_location["lat"], pano_location["lng"])
         poi.pano_id = response.json().get("pano_id")
@@ -104,7 +118,7 @@ class Session:
         # Get the coordinates of the pano Google pics for this POI
         self.pull_pano_info(poi)
 
-        # Convert to radians 
+        # Convert latitude to radians, get distance between lon in radians.  
         diff_lon = math.radians(poi.coords.lon - poi.pano_coords.lon)
         lat1 = math.radians(poi.pano_coords.lat)
         lat2 = math.radians(poi.coords.lat)
@@ -113,47 +127,55 @@ class Session:
         x = math.sin(diff_lon) * math.cos(lat2)
         y = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(diff_lon)
     
-        initial_bearing = math.atan2(x, y)
+        bearing = math.atan2(x, y)
         
-        # Convert radians to degrees and normalize to 0-360 degrees
-        initial_bearing = math.degrees(initial_bearing)
-        compass_bearing = (initial_bearing + 360) % 360
+        # Convert radians to degrees and then compass bearing
+        bearing = math.degrees(bearing)
+        compass_bearing = (bearing + 360) % 360
         poi.heading = compass_bearing
 
-    def pull_image(self, poi: POI, fov: int):
+    def pull_image(self, poi: POI, fov=85, add_imgs=0):
         """
-        Pull an image from google streetview 
+        Pull an image of a POI from google streetview 
+        Args:
+            poi: The point of interest object that you're trying to capture
+            fov: The field of view for the streetview image (Google only allows up to 120 degrees)
+            add_imgs: Adds the number of images inputted to both sides. For instance, add_imgs=1 
+            will capture 1 image on both sides of the primary image and stitch them together. 
         """
-        # Set POI's FOV 
+        # Set POI's FOV
         poi.fov = fov
 
-        # Parameters for API request
-        pic_params = {'key': self.api_key,
-                        'size': self.pic_size,
-                        'fov': poi.fov,
-                        'heading': poi.heading,
-                        'return_error_code': True,
-                        'outdoor': True,
-                        'size':"640x640"}
-        
-        # Add either coordinate location or pano ID depending on what's in the POI
-        if poi.pano_id:
-            pic_params['pano'] = poi.pano_id
-            image_path = self.folder_path + "/" + f"{poi.pano_id}"+".jpg"
-        else: 
-            pic_params['location'] = poi.coords.to_string()
-            image_path = self.folder_path + "/" + f"{poi.coords.to_string()}"+".jpg"
+        # Pull each image
+        for img in num_imgs:
+            # Get this image's heading 
+            # Parameters for API request
+            pic_params = {'key': self.api_key,
+                            'size': self.pic_size,
+                            'fov': poi.fov,
+                            'heading': poi.heading,
+                            'return_error_code': True,
+                            'outdoor': True,
+                            'size':"640x640"}
+            
+            # Add either coordinate location or pano ID depending on what's in the POI
+            if poi.pano_id:
+                pic_params['pano'] = poi.pano_id
+                image_path = self.folder_path + "/" + f"{poi.pano_id}"+".jpg"
+            else: 
+                pic_params['location'] = poi.coords.to_string()
+                image_path = self.folder_path + "/" + f"{poi.coords.to_string()}"+".jpg"
 
-        # Try to fetch pic from API
-        if self.debug: print(f"Pulling image for {poi.coords.to_string()}")
-        response = self.pull_response(pic_params, 'https://maps.googleapis.com/maps/api/streetview?')
-        
-        # Write this image segment into the temp folder
-        with open(image_path, "wb") as file:
-            file.write(response.content)
+            # Try to fetch pic from API
+            if self.debug: print(f"Pulling image for {poi.coords.to_string()}")
+            response = self.pull_response(pic_params, 'https://maps.googleapis.com/maps/api/streetview?')
+            
+            # Write this image segment into the temp folder
+            with open(image_path, "wb") as file:
+                file.write(response.content)
 
-        # Write this POI's log into the entries 
-        self.log.append(poi.get_log())
+        # Write this POI's entry into the log 
+        self.log.append(poi.get_entry())
 
         # Close response, return new image's path
         response.close()
@@ -198,6 +220,10 @@ class Session:
         imwrite(path, stitched_image)
     
     def write_log(self):
+        """
+            Writes a CSV file with the coordinates, FOV, etc. of each POI.
+            Use at the END of a session, IE when you're finished pulling images.
+        """
         log_df = pd.DataFrame(self.log)
         log_path = self.folder_path + "/log.csv"
         log_df.to_csv(log_path)
@@ -208,7 +234,8 @@ class Session:
             response = requests.get(base, params=params, timeout=10)
         except requests.exceptions.Timeout: 
             print(f"Request timed out!")
-         # Check if the request was successful
+
+        # Check if the request was successful
         if response.status_code == 200:
             return response
         else:

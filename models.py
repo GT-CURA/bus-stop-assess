@@ -3,6 +3,7 @@ import numpy as np
 import onnxruntime as ort
 import ultralytics as ua
 from roboflow import Roboflow
+from os import listdir
 
 class BusStopCV:
     """
@@ -132,7 +133,14 @@ class yolo:
         # Set up model
         self.model = ua.YOLO(model_path)
     
-    def infer(self, image_paths):
+    def infer(self, image_paths, output_folder="output", input_folder=None):
+        """Runs the model with inputted images. Specify a folder path to infer every image in the folder."""
+
+        # Gather the names of each file in the folder if a folder path is specified 
+        if input_folder:
+            file_names = [f"{input_folder}/{file}" for file in listdir(input_folder)]
+            image_paths=file_names
+
         # Run model
         results = self.model(image_paths)
         for result in results:
@@ -140,8 +148,8 @@ class yolo:
             name = result.path.rsplit('/')[-1]
 
             # Save output image
-            result.save(filename=f"output/{name}")
-
+            result.save(filename=f"{output_folder}/{name}")
+    
     def train(self):
         # Check hardware & load pre-trained model from ultralytics
         #ua.checks()
@@ -159,6 +167,7 @@ class yolo:
 
         # Export model 
         #model.export(format="onnx")
+        #yolo task=detect mode=train model=yolo11n.pt data=/home/dev/src/gra/Bus-Stop-Classification/datasets/first/data.yaml epochs=300 imgsz=640 workers=0 patience=100 plots=True
 
 
 
