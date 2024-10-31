@@ -1,9 +1,9 @@
 import requests
 import os
 import math
-from cv2 import imwrite, imread
-import numpy as np
 import pandas as pd
+from PIL import Image
+import io 
 
 class coord:
     """
@@ -44,8 +44,9 @@ class POI:
         return entry
 
 class Session:
-    # Parameters for all pics 
-    pic_size = "640x640"
+    # Parameters for all pics
+    pic_height = 640
+    pic_len = 640
 
     def __init__(self, folder_path: str, debug=False, key_path="keys/streetview.txt"):
         # Read API key 
@@ -144,42 +145,65 @@ class Session:
             will capture 1 image on both sides of the primary image and stitch them together. 
         """
         # Set POI's FOV
-        poi.fov = fov
+        if fov <= 120: 
+            poi.fov = fov
+        else:
+            print("FOV Must be <= 120")
+            return
 
-        # Pull each image
-        for img in num_imgs:
-            # Get this image's heading 
-            # Parameters for API request
-            pic_params = {'key': self.api_key,
-                            'size': self.pic_size,
-                            'fov': poi.fov,
-                            'heading': poi.heading,
-                            'return_error_code': True,
-                            'outdoor': True,
-                            'size':"640x640"}
-            
-            # Add either coordinate location or pano ID depending on what's in the POI
-            if poi.pano_id:
-                pic_params['pano'] = poi.pano_id
-                image_path = self.folder_path + "/" + f"{poi.pano_id}"+".jpg"
-            else: 
-                pic_params['location'] = poi.coords.to_string()
-                image_path = self.folder_path + "/" + f"{poi.coords.to_string()}"+".jpg"
+        # Pull each images
+        if add_imgs:
+            # Object to store the images in (as arrays) before stitching 
+            imgs = []
+            start_heading = poi.heading - (add_imgs * fov)
 
-            # Try to fetch pic from API
-            if self.debug: print(f"Pulling image for {poi.coords.to_string()}")
-            response = self.pull_response(pic_params, 'https://maps.googleapis.com/maps/api/streetview?')
+            # Iterate through each value of heading, pulling images
+            for i in range(add_imgs * 2 + 1):
+                heading = start_heading + i * poi.fov
+                img = self._pull_image(poi, heading)
+                imgs.append(img)
             
-            # Write this image segment into the temp folder
-            with open(image_path, "wb") as file:
-                file.write(response.content)
+            # Stitch images
+            final_img = self.stitch_images(imgs)
+        else:
+            final_img = self._pull_image(poi, poi.heading)
+        
+        # Add either coordinate location or pano ID depending on what's in the POI
+        if poi.pano_id:
+            image_path = self.folder_path + "/" + f"{poi.pano_id}"+".jpg"
+        else: 
+            image_path = self.folder_path + "/" + f"{poi.coords.to_string()}"+".jpg"
+
+        # Write this image segment into the temp folder
+        final_img.save(image_path)
 
         # Write this POI's entry into the log 
         self.log.append(poi.get_entry())
 
-        # Close response, return new image's path
+    def _pull_image(self, poi: POI, heading):
+        # Parameters for API request
+        pic_params = {'key': self.api_key,
+                        'size': f"{self.pic_len}x{self.pic_height}",
+                        'fov': poi.fov,
+                        'heading': heading,
+                        'return_error_code': True,
+                        'outdoor': True,
+                        'size':"640x640"}
+        
+        # Add location or coordinates
+        if poi.pano_id:
+            pic_params['pano'] = poi.pano_id
+        else:
+            pic_params['location'] = poi.coords
+            
+        # Try to fetch pic from API
+        if self.debug: print(f"Pulling image for {poi.coords.to_string()}")
+        response = self.pull_response(pic_params, 'https://maps.googleapis.com/maps/api/streetview?')
+
+        # Close response, return content 
+        content = response.content
         response.close()
-        return image_path
+        return content
 
     def pull_pano(self, poi: POI, num_pics=8):
         """
@@ -190,34 +214,40 @@ class Session:
             stops (dataframe): All coordinates to pull images of. 
             folder_name (string): Name of the output folder
         """
-        image_paths = []
         poi.fov = 360/num_pics
+        imgs = []
 
         # Capture 'num_pics' many photos
         for degree in range(0, 360, int(360/num_pics)):
             # Save image into temp folder, get its path
             poi.heading = degree
-            image_paths.append(self.pull_image(poi, "temp"))
+            imgs.append(self._pull_image(poi))
         
         # Stitch all the images of this bus stop together
-        self.stitch_images(image_paths)
+        pano = self.stitch_images(imgs)
 
-    def stitch_images(self, image_paths: str):
-        # Load images, create stitcher 
-        images = [imread(image_path) for image_path in image_paths]
+        # Add either coordinate location or pano ID depending on what's in the POI
+        if poi.pano_id:
+            image_path = self.folder_path + "/" + f"{poi.pano_id}"+".jpg"
+        else: 
+            image_path = self.folder_path + "/" + f"{poi.coords.to_string()}"+".jpg"
 
-        # Stitch images 
-        stitched_image = np.hstack(images)
+        # Write this image segment into the temp folder
+        pano.save(image_path)
 
-        # Remove path and degree from name lol
-        name = image_paths[0].replace('_0', '_stitched')
-        name = name.replace('temp/', '')
-        
-        # Write into correct folder
-        if not os.path.exists(self.folder_path):
-            os.makedirs(self.folder_path)
-        path = os.getcwd() + "/" + self.folder_path + "/" + name
-        imwrite(path, stitched_image)
+    def stitch_images(self, imgs):
+        # Convert to PIL images
+        pil_imgs = [Image.open(io.BytesIO(img_bytes)) for img_bytes in imgs]
+
+        # Create a blank image
+        stitched = Image.new('RGB', (self.pic_len*len(imgs), self.pic_height))
+
+        # Paste each of the images onto the blank one
+        x_offset = 0
+        for img in pil_imgs:
+            stitched.paste(img, (x_offset, 0))
+            x_offset += img.width
+        return stitched
     
     def write_log(self):
         """

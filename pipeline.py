@@ -3,9 +3,8 @@ import pandas as pd
 from models import BusStopCV, yolo
 import os
 
-pics = ["sign2.png","manual.png"]
-model = yolo()
-model.infer(image_paths=pics)
+# Create new instances of streetview tools
+instance = Session("pics/test", debug=True)
 
 # Read MARTA's inventory of bus stops 
 bus_stops_atl = pd.read_csv("data/atl/MARTA_cleaned.csv")
@@ -16,9 +15,6 @@ bus_shelters_nyc = pd.read_csv("data/nyc.csv")
 # Select signs
 stops = bus_stops_atl[bus_stops_atl["Bus Stop Type"] == "Shelter"]
 sampled = stops[351:400]
-
-# Create new instances of streetview tools
-instance = Session("pics/atl/shelters", debug=True)
 
 def pull_row(row):
     # Build POI, improve its coordinates
