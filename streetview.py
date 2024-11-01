@@ -135,14 +135,13 @@ class Session:
         compass_bearing = (bearing + 360) % 360
         poi.heading = compass_bearing
 
-    def pull_image(self, poi: POI, fov=85, add_imgs=0):
+    def pull_image(self, poi: POI, fov=85, num_imgs=1):
         """
         Pull an image of a POI from google streetview 
         Args:
             poi: The point of interest object that you're trying to capture
             fov: The field of view for the streetview image (Google only allows up to 120 degrees)
-            add_imgs: Adds the number of images inputted to both sides. For instance, add_imgs=1 
-            will capture 1 image on both sides of the primary image and stitch them together. 
+            num_imgs: Pulls this many pictures of the POI and stitches them together. Currently must be odd bc I'm lazy. 
         """
         # Set POI's FOV
         if fov <= 120: 
@@ -150,15 +149,18 @@ class Session:
         else:
             print("FOV Must be <= 120")
             return
-
+        
         # Pull each images
-        if add_imgs:
+        if num_imgs > 1:
+            # Update POI 
+            poi.num_imgs = num_imgs
+
             # Object to store the images in (as arrays) before stitching 
             imgs = []
-            start_heading = poi.heading - (add_imgs * fov)
+            start_heading = poi.heading - ((num_imgs-1)/2 * fov)
 
             # Iterate through each value of heading, pulling images
-            for i in range(add_imgs * 2 + 1):
+            for i in range(num_imgs):
                 heading = start_heading + i * poi.fov
                 img = self._pull_image(poi, heading)
                 imgs.append(img)
@@ -207,12 +209,11 @@ class Session:
 
     def pull_pano(self, poi: POI, num_pics=8):
         """
-        Given a dataframe of coordinates, pulls a panorama of each coordinate from Google Streetview. 
-        Pulls num_pics many images and stitches them together into a panorama. 
+        Pulls num_pics many images of a POI and stitches them together into a panorama. 
 
         Args:
-            stops (dataframe): All coordinates to pull images of. 
-            folder_name (string): Name of the output folder
+            poi: the POI that will be captured. 
+            num_pics: how many pics will be captured and stitched into the pano.
         """
         poi.fov = 360/num_pics
         imgs = []
