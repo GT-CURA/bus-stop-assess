@@ -3,7 +3,7 @@ import numpy as np
 import onnxruntime as ort
 import ultralytics as ua
 from roboflow import Roboflow
-from os import listdir
+import os
 
 class BusStopCV:
     """
@@ -133,12 +133,16 @@ class yolo:
         # Set up model
         self.model = ua.YOLO(model_path)
     
-    def infer(self, image_paths, output_folder="output", input_folder=None):
+    def infer(self, image_paths=None, input_folder=None, output_folder="output"):
         """Runs the model with inputted images. Specify a folder path to infer every image in the folder."""
-
+        # Ensure that input is provided
+        if image_paths == None and input_folder == None: 
+            print("No input specified")
+            return 
+        
         # Gather the names of each file in the folder if a folder path is specified 
         if input_folder:
-            file_names = [f"{input_folder}/{file}" for file in listdir(input_folder)]
+            file_names = [f"{input_folder}/{file}" for file in os.listdir(input_folder)]
             image_paths=file_names
 
         # Run model
@@ -146,6 +150,9 @@ class yolo:
         for result in results:
             # Extract the name from the result's path bc I can't think of a better way to do this
             name = result.path.rsplit('/')[-1]
+
+            # Make sure the folder exists bc I keep forgetting to 
+            if not os.path.exists(output_folder): os.makedirs(output_folder)
 
             # Save output image
             result.save(filename=f"{output_folder}/{name}")

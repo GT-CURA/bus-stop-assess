@@ -1,6 +1,10 @@
 from streetview import POI, Session
 import pandas as pd
-from models import BusStopCV, yolo
+import multipic
+
+# Define a temp POI 
+test = POI(id="15", lat=33.781501, lon=-84.407777)
+points = multipic.get_pics(test)
 
 # Create new instances of streetview tools
 instance = Session("pics/test", debug=True)
@@ -17,14 +21,14 @@ sampled = stops[500:502]
 
 def pull_row(row):
     # Build POI, improve its coordinates
-    bus_stop = POI(row["Stop ID"], row["Lat"], row["Lon"], "bus stop")
+    bus_stop = POI(row["Stop ID"], row["Lat"], row["Lon"])
     instance.improve_coordinates(bus_stop)
 
     # Get pano ID, plug it into heading function
     instance.set_heading(bus_stop)
 
     # Pull picture using pano ID found earlier
-    instance.pull_image(bus_stop, 45, 3)
+    instance.pull_image(bus_stop, 45)
 
 # Pull each row in sample
 sampled.apply(pull_row, axis=1)

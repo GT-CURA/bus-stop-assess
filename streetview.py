@@ -28,7 +28,7 @@ class POI:
     error: str
     num_imgs = 1
 
-    def __init__(self, id, lat: float, lon: float, key_word: str):
+    def __init__(self, id, lat: float, lon: float, key_word = "bus stop"):
         self.ID = id
         self.coords = coord(lat, lon)
         self.original_coords = self.coords
@@ -162,13 +162,13 @@ class Session:
             # Iterate through each value of heading, pulling images
             for i in range(num_imgs):
                 heading = start_heading + i * poi.fov
-                img = self._pull_image(poi, heading)
+                img = self.__pull_image(poi, heading)
                 imgs.append(img)
             
             # Stitch images
             final_img = self.stitch_images(imgs)
         else:
-            final_img = self._pull_image(poi, poi.heading)
+            final_img = self.__pull_image(poi, poi.heading)
         
         # Add either coordinate location or pano ID depending on what's in the POI
         if poi.pano_id:
@@ -182,7 +182,7 @@ class Session:
         # Write this POI's entry into the log 
         self.log.append(poi.get_entry())
 
-    def _pull_image(self, poi: POI, heading):
+    def __pull_image(self, poi: POI, heading):
         # Parameters for API request
         pic_params = {'key': self.api_key,
                         'size': f"{self.pic_len}x{self.pic_height}",
@@ -222,7 +222,7 @@ class Session:
         for degree in range(0, 360, int(360/num_pics)):
             # Save image into temp folder, get its path
             poi.heading = degree
-            imgs.append(self._pull_image(poi))
+            imgs.append(self.__pull_image(poi))
         
         # Stitch all the images of this bus stop together
         pano = self.stitch_images(imgs)
