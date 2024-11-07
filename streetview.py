@@ -21,11 +21,11 @@ class coord:
         return f"{self.lat},{self.lon}"
 
 class POI:
-    pano_id: str
-    pano_coords: coord
-    heading: float
-    fov: float
-    error: str
+    pano_id: str = None
+    pano_coords: coord = None
+    heading: float = None
+    fov: float = None
+    error: str = None
     num_imgs = 1
 
     def __init__(self, id, lat: float, lon: float, key_word = "bus stop"):
@@ -36,11 +36,23 @@ class POI:
 
     def get_entry(self):
         # Represents the row corresponding to this image in the log.
-        entry = {'id': self.ID, 'num_imgs':self.num_imgs, 'pano_id': self.pano_id, 
-                 'pano_lat': self.pano_coords.lat, 'pano_lon':self.pano_coords.lon, 
-                 'original_lat': self.original_coords.lat, 'original_lon':self.original_coords.lon,
+        entry = {'id': self.ID, 'num_imgs':self.num_imgs,
                  'updated_lat':self.coords.lat,'updated_lon':self.coords.lon, 
                  'heading': self.heading, 'fov':self.fov}
+        
+        # Only add Pano info if pull_pano_info was called
+        if self.pano_id:
+            entry.update({
+                'pano_id': self.pano_id, 
+                'pano_lat': self.pano_coords.lat, 'pano_lon':self.pano_coords.lon, 
+            })
+
+        # Only add updated coords if improve_coords was called
+        if self.original_coords: 
+            entry.update({
+                'original_lat': self.original_coords.lat, 
+                'original_lon':self.original_coords.lon,
+            })
         return entry
 
 class Session:
@@ -112,7 +124,7 @@ class Session:
         poi.pano_coords = coord(pano_location["lat"], pano_location["lng"])
         poi.pano_id = response.json().get("pano_id")
     
-    def set_heading(self, poi: POI):
+    def estimate_heading(self, poi: POI):
         """
         Use pano's coords to determine the necessary camera FOV.
         """
@@ -168,7 +180,8 @@ class Session:
             # Stitch images
             final_img = self.stitch_images(imgs)
         else:
-            final_img = self.__pull_image(poi, poi.heading)
+            img = self.__pull_image(poi, poi.heading)
+            final_img = Image.open(io.BytesIO(img))
         
         # Add either coordinate location or pano ID depending on what's in the POI
         if poi.pano_id:
@@ -196,7 +209,7 @@ class Session:
         if poi.pano_id:
             pic_params['pano'] = poi.pano_id
         else:
-            pic_params['location'] = poi.coords
+            pic_params['location'] = poi.coords.to_string()
             
         # Try to fetch pic from API
         if self.debug: print(f"Pulling image for {poi.coords.to_string()}")

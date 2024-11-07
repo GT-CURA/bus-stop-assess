@@ -1,10 +1,11 @@
 from streetview import POI, Session
 import pandas as pd
-import multipic
+import multipoint
 
 # Define a temp POI 
 test = POI(id="15", lat=33.781501, lon=-84.407777)
-points = multipic.get_pics(test)
+
+points = multipoint.get_points(test)
 
 # Create new instances of streetview tools
 instance = Session("pics/test", debug=True)
@@ -25,10 +26,19 @@ def pull_row(row):
     instance.improve_coordinates(bus_stop)
 
     # Get pano ID, plug it into heading function
-    instance.set_heading(bus_stop)
+    instance.estimate_heading(bus_stop)
 
     # Pull picture using pano ID found earlier
     instance.pull_image(bus_stop, 45)
+
+def pull_multipic(row):
+    lat = row["lat"]
+    lon = row["lon"]
+    bus_stop = POI(None, lat=lat, lon=lon)
+    bus_stop.heading = row["heading"]
+    instance.pull_image(bus_stop)
+
+points.apply(pull_multipic, axis=1)
 
 # Pull each row in sample
 sampled.apply(pull_row, axis=1)
