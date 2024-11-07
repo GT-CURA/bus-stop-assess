@@ -5,9 +5,10 @@ import numpy as np
 from shapely.geometry import Point
 from shapely.ops import linemerge, unary_union
 from streetview import POI
+from math import pi
 
-# Function to generate points at intervals along a line
 def generate_points(road, interval):
+    """ Generates points along a line."""
     # Project line for meter-based calculations 
     road = road.to_crs("EPSG:3857")
 
@@ -25,22 +26,26 @@ def generate_points(road, interval):
     gdf = gpd.GeoDataFrame(geometry=interpolated_points, crs="EPSG:3857").to_crs("EPSG:4326")
     return gdf
 
-# Function to calculate headings (azimuths) between consecutive coordinates
-def calculate_headings(coords):
+def calculate_headings(points):
+    """ Calculates headings between consecutive coordinates."""
     headings = []
-    for i in range(len(coords) - 1):
-        delta_x = coords[i + 1].x - coords[i].x
-        delta_y = coords[i + 1].y - coords[i].y
-        azi = np.degrees(np.arctan2(delta_x, delta_y))
-        headings.append((azi + 360) % 360)  # Normalize heading within 0-360 degrees
+    for i in range(len(points) - 1):
+        # Calculate difference between this coordinate and its neighbor
+        delta_x = points[i + 1].x - points[i].x
+        delta_y = points[i + 1].y - points[i].y
+
+        # Calculate arctan2 of differences, then normalize
+        azi = np.degrees(np.arctan2(delta_x, delta_y)) * (180 / pi)
+        headings.append((azi + 360) % 360) 
     return headings
 
-# Calculate headings to point_sf from each selected point
 def calculate_heading_between_points(x1, y1, x2, y2):
+    """Calculate headings to original point from each selected point."""
     azi = np.degrees(np.arctan2(x1 - x2, y1 - y2))
-    return (azi + 360) % 360  # Normalize heading to 0-360 degrees
+    return (azi + 360) % 360 
 
-def get_points(poi: POI, interval=10):
+def get_points(poi: POI, interval=15):
+    """ Main function. Produces a dataframe of 3 points of 'interval' distance from each other."""
     # Make point into a geodataframe 
     original_pt = gpd.GeoDataFrame(geometry=[Point(poi.coords.lon, poi.coords.lat)], crs="EPSG:4326")
     
@@ -78,20 +83,19 @@ def get_points(poi: POI, interval=10):
     distances = points.distance(original_pt.geometry.iloc[0], False)
     closest_index = distances.idxmin()
     points = points.to_crs("EPSG:4326")
+    original_pt = original_pt.to_crs("EPSG:4326")
 
     # Select points 10 meters before and after the closest point
     indices = [closest_index - 1, closest_index, closest_index + 1]
     indices = [idx for idx in indices if idx >= 0 and idx < len(points)]
     selected_points = points.iloc[indices]
 
-    # Transform point_sf to coordinates and calculate headings
+    # Transform original point to coordinates and calculate headings
     point_coords = original_pt.geometry.iloc[0].coords[0]
-    selected_points['Heading_to_point_sf'] = selected_points.geometry.apply(
-        lambda p: calculate_heading_between_points(point_coords[0], point_coords[1], p.x, p.y)
-    )
+    headings = [calculate_heading_between_points(point_coords[0], point_coords[1], p.x, p.y) for p in selected_points["geometry"]]
 
     # Convert to a dataframe
-    df = pd.DataFrame(data={'heading': selected_points["Heading_to_point_sf"],
+    df = pd.DataFrame(data={'heading': headings,
                             'lat': selected_points["geometry"].y, 
                             'lon': selected_points["geometry"].x})
     return df

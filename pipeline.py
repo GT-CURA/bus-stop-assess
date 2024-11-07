@@ -2,13 +2,13 @@ from streetview import POI, Session
 import pandas as pd
 import multipoint
 
-# Define a temp POI 
-test = POI(id="15", lat=33.781501, lon=-84.407777)
-
-points = multipoint.get_points(test)
-
 # Create new instances of streetview tools
 instance = Session("pics/test", debug=True)
+
+# Define a temp POI 
+test = POI(id="15", lat=33.838752, lon=-84.368854)
+
+points = multipoint.get_points(test)
 
 # Read MARTA's inventory of bus stops 
 bus_stops_atl = pd.read_csv("data/atl/MARTA_cleaned.csv")
