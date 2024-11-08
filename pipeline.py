@@ -23,7 +23,7 @@ sampled = stops[500:502]
 def pull_row(row):
     # Build POI, improve its coordinates
     bus_stop = POI(row["Stop ID"], row["Lat"], row["Lon"])
-    instance.improve_coordinates(bus_stop)
+    instance.improve_coords(bus_stop)
 
     # Get pano ID, plug it into heading function
     instance.estimate_heading(bus_stop)

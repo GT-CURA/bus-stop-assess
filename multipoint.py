@@ -85,7 +85,7 @@ def get_points(poi: POI, interval=15):
     points = points.to_crs("EPSG:4326")
     original_pt = original_pt.to_crs("EPSG:4326")
 
-    # Select points 10 meters before and after the closest point
+    # Select points 'interval' meters before and after the closest point
     indices = [closest_index - 1, closest_index, closest_index + 1]
     indices = [idx for idx in indices if idx >= 0 and idx < len(points)]
     selected_points = points.iloc[indices]
