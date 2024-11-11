@@ -4,7 +4,8 @@ import math
 import pandas as pd
 from PIL import Image
 import io 
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
+import attr
 
 @dataclass
 class Coord:
@@ -17,56 +18,63 @@ class Coord:
     lat: float
     lon: float
     
-    def to_string(self):
-        """Outputs coordinate pair as an f-string"""
+    def __repr__(self):
         return f"{self.lat},{self.lon}"
 
 @dataclass
-class Pic: 
+class Pic:
+    pic_number: int = 0
     heading: float = None
-    number: int = 0
-    stitch_count: int
+    stitch_count: int = 0
+    coords: Coord = None
+    pano_id: str = None
 
-@dataclass
 class POI:
     fov: float = None
     errors = []
-    num_pics = 1
-    id = None
-    lat: float
-    lon: float
-    key_word = "bus stop"
-    coords = Coord(lat, lon)
-    original_coords = Coord(lat, lon)
     pics = []
-    pano_id: str = None
-    pano_coords: Coord = None
+
+    def __init__(self, lat:float, lon:float, id=None, keyword="bus stop"):
+        self.id = id
+        self.coords = Coord(lat, lon)
+        self.original_coords = Coord(lat, lon)
+        self.keyword = keyword
 
     def get_entry(self):
-        # Represents the row corresponding to this image in the log.
-        entry = {'id': self.ID, 'num_imgs':self.num_imgs,
-                 'updated_lat':self.coords.lat,'updated_lon':self.coords.lon, 
-                 'heading': self.heading, 'fov':self.fov}
+        # Represents the row corresponding to this POI in the log.
+        entry = {'id': self.id, 'updated_lat':self.coords.lat,'updated_lon':self.coords.lon,
+                 'fov': self.fov, 'errors': None,}
         
-        # Only add Pano info if pull_pano_info was called
-        if self.pano_id:
-            entry.update({
-                'pano_id': self.pano_id, 
-                'pano_lat': self.pano_coords.lat, 'pano_lon':self.pano_coords.lon, 
-            })
-
         # Only add updated coords if improve_coords was called
         if self.original_coords: 
             entry.update({
                 'original_lat': self.original_coords.lat, 
-                'original_lon':self.original_coords.lon,
+                'original_lon': self.original_coords.lon,
             })
-        return entry
+        
+        # Update errors in entry if this POI had any  
+        if len(self.errors):
+            entry["errors"] = [repr(error) for error in self.errors]
+        
+        # Accomodate multiple Pics 
+        entries = []
+        for pic in self.pics:
+            # Copy this entry, update it with Pic details
+            pic_entry = entry.copy()
+            pic_entry.update(asdict(pic))
+            entries.append(pic_entry)
+        
+        # Return all entries
+        return entries
 
-@ dataclass
-class Error: 
-    context: str 
-    msg: str 
+@dataclass
+class Error:
+    # I have OCD 
+    context: str
+    msg: str
+
+    def __repr__(self):
+        return f"{self.msg} while {self.context}. "
 
 class Session:
     # Parameters for all pics
@@ -85,11 +93,10 @@ class Session:
         if not os.path.exists(self.folder_path):
             os.makedirs(self.folder_path)
         
-        # Create log for this session, start clock
+        # Create log for this session
         self.log = []
     
-    def capture_POI(self, poi:POI, fov = 85, points:pd.DataFrame = None,
-     heading:float=None, stitch_count=0):
+    def capture_POI(self, poi:POI, points:pd.DataFrame = None, fov = 85, heading:float=None, stitch_count=0):
         """
         Main method for capturing photos of a POI. 
         Args:
@@ -105,23 +112,30 @@ class Session:
             return
         poi.fov = fov
 
-        # Handle multi point pulling
-        if points: 
-            points.apply(lambda row: 
-            self.pull_pic(poi, Pic(heading=row["heading"], number=row.name, stitch_count=stitch_count)), 
-            axis=1)
+        # Warn that heading will be ignored if multipoint was used
+        if heading and points:
+            print("Warning: inputted heading will be overridden by those calculated by multipoint tool")
+
+        # Handle multipoint pulling
+        if points is not None: 
+            # Build and capture Pic for each row of the dataframe 
+            for index, row in points.iterrows():
+                pic = Pic(row["heading"], index, stitch_count, Coord(row["lat"], row["lon"]))
+                self._capture_pic(poi, pic)
         
         else:
+            # Build pic 
+            pic = Pic(heading, stitch_count=stitch_count, coords=poi.coords)
+
             # Estimate heading if none is provided 
             if heading == None:
-                heading = self.estimate_heading(poi)
+                self._estimate_heading(pic, poi)
             
             # Pull pic 
-            pic = Pic(heading, stitch_count=stitch_count)
-            self.pull_pic(pic)
+            self._capture_pic(poi, pic)
         
-        # Write this POI's entry into the log 
-        self.log.append(poi.get_entry())
+        # Write this POI's entry/entries into the log 
+        [self.log.append(entry) for entry in poi.get_entry()]
 
     def _capture_pic(self, poi: POI, pic: Pic):
         # Pull each images
@@ -134,57 +148,65 @@ class Session:
                 # Calculate heading for this image
                 heading = start_heading + i * poi.fov
 
-                # Pull this image, check for errors, add to list
-                img = self._pull_image(poi, heading)
-                if not img: return 
+                # Pull this image, check if an error occured, add to list 
+                img = self._pull_image(pic, poi.fov, heading)
+                if type(img) == Error:
+                    poi.errors.append(img)
+                    return 
                 imgs.append(img)
             
             # Stitch images
-            final_img = self.stitch_images(imgs)
+            final_img = self._stitch_images(imgs)
         else:
-            # Pull image, check if nothing is returned (error)
-            img = self._pull_image(poi, pic.heading)
-            if not img: return 
+            # Pull image, check for errors
+            img = self._pull_image(pic, poi.fov, pic.heading)
+            if type(img) == Error:
+                poi.errors.append(img)
+                return 
 
             # Open as PIL image
             final_img = Image.open(io.BytesIO(img))
         
         # Add either coordinate location or pano ID to path depending on what's in the POI
-        if poi.pano_id:
-            image_path = self.folder_path + "/" + f"{poi.pano_id}"+".jpg"
+        if pic.pano_id:
+            image_path = self.folder_path + "/" + f"{pic.pano_id}"+".jpg"
         else: 
-            image_path = self.folder_path + "/" + f"{poi.coords.to_string()}"+".jpg"
+            image_path = self.folder_path + "/" + f"{pic.coords}"+".jpg"
 
-        # Write this image segment into the temp folder
+        # Save the image, add the Pic object to the POI
         final_img.save(image_path)
+        poi.pics.append(pic)
 
-    def _pull_image(self, poi: POI, heading):
+    def _pull_image(self, pic: Pic, fov, heading):
         # Parameters for API request
         pic_params = {'key': self.api_key,
                         'size': f"{self.pic_len}x{self.pic_height}",
-                        'fov': poi.fov,
+                        'fov': fov,
                         'heading': heading,
                         'return_error_code': True,
                         'outdoor': True}
         
         # Add location or coordinates
-        if poi.pano_id:
-            pic_params['pano'] = poi.pano_id
+        if pic.pano_id:
+            pic_params['pano'] = pic.pano_id
         else:
-            pic_params['location'] = poi.coords.to_string()
+            pic_params['location'] = repr(pic.coords)
 
         # Pull response 
-        response = self.pull_response(
+        response = self._pull_response(
             params = pic_params,
             context = "pulling image",
-            coords = poi.coords.to_string(),
+            coords = repr(pic.coords),
             base = 'https://maps.googleapis.com/maps/api/streetview?')
         
         # Check for errors 
         if type(response) == Error: 
-            poi.errors.append(response)
-            return
+            return response
 
+        # Check for empty image 
+        if not response.content:
+            return Error("pulling image", "no image found")
+        
         # Close response, return content 
         content = response.content
         response.close()
@@ -192,25 +214,30 @@ class Session:
 
     def improve_coords(self, poi: POI):
         """
-        Pull Google's coordinates for a POI in the event that the provided coordinates suck
+        Pull Google's coordinates for a POI in the event that the provided coordinates suck. 
+        Will use the 'nearby search' tool in the Google Maps API to find the nearest 'keyword'
+        to the POI's location and update the POI's coords acoordingly (haha).  
+        Args:
+            poi: The point of interest that needs to have its coords improved. 
         """
         # Build params
         params = {
-            'location': poi.coords.to_string(),
-            'keyword':poi.key_word,
+            'location': repr(poi.coords),
+            'keyword':poi.keyword,
             'key': self.api_key,
             'rankby':'distance',
             'maxResultCount': 1
         }
         
-        # Pull and check response
-        response = self.pull_response(
-            params,
-            'https://maps.googleapis.com/maps/api/place/nearbysearch/json',
-            "pulling nearby search results")
-        if type(response) == Error:
-            poi.errors.append(response)
-            return
+        # Pull a response 
+        response = self._pull_response(
+            params = params,
+            base = 'https://maps.googleapis.com/maps/api/place/nearbysearch/json',
+            context = "pulling nearby search results",
+            coords=poi.coords)
+        
+        # Check if request errored
+        if type(response) == Error: return
         
         # Get results from the response
         results = response.json().get('results', [])
@@ -224,55 +251,58 @@ class Session:
 
         # Handle no results 
         else: 
-            poi.error.append(Error("pulling nearby search results", f"no nearby {poi.key_word} found"))
-            if self.debug: print(f"No nearby {poi.key_word} found for {poi.coords.to_string()}")
+            poi.errors.append(Error("pulling nearby search results", f"no nearby {poi.keyword} found"))
+            if self.debug: print(f"No nearby {poi.keyword} found for {poi.coords}")
 
+    def _estimate_heading(self, pic: Pic, poi: POI):
+        """
+        Use pano's coords to determine the necessary camera FOV.
+        """
+        # Get the coordinates of the pano Google pics for this POI
+        self._pull_pano_info(pic)
+
+        # Convert latitude to radians, get distance between new & old lons in radians.  
+        diff_lon = math.radians(poi.coords.lon - pic.coords.lon)
+        old_lat = math.radians(pic.coords.lat)
+        new_lat = math.radians(poi.coords.lat)
+
+        # Determine degree
+        x = math.sin(diff_lon) * math.cos(new_lat)
+        y = math.cos(old_lat) * math.sin(new_lat) - math.sin(old_lat) * math.cos(new_lat) * math.cos(diff_lon)
     
-    def pull_pano_info(self, poi: POI):
+        bearing = math.atan2(x, y)
+        
+        # Convert radians to degrees, normalize
+        bearing = math.degrees(bearing)
+        compass_bearing = (bearing + 360) % 360
+        pic.heading = compass_bearing
+
+    def _pull_pano_info(self, pic: Pic):
         """
         Extract coordiantes from a pano's metadata, used to determine heading
         """
         # Params for request
         params = {
-            'location': poi.coords.to_string(),
+            'location': repr(pic.coords),
             'key': self.api_key
         }
 
-        # Send a request, except faulty responses
-        response = self.pull_response(
+        # Send a request
+        response = self._pull_response(
             params=params,
-            coords=poi.coords.to_string(),
+            coords=repr(pic.coords),
             context="pulling metadata",
             base='https://maps.googleapis.com/maps/api/streetview/metadata?')
         
+        # Check for errors 
+        if type(response) == Error: return 
+        
         # Fetch the coordinates from the json response and store them in the POI
         pano_location = response.json().get("location")
-        poi.pano_coords = Coord(pano_location["lat"], pano_location["lng"])
-        poi.pano_id = response.json().get("pano_id")
+        pic.coords = Coord(pano_location["lat"], pano_location["lng"])
+        pic.pano_id = response.json().get("pano_id")
+        response.close()
     
-    def estimate_heading(self, poi: POI):
-        """
-        Use pano's coords to determine the necessary camera FOV.
-        """
-        # Get the coordinates of the pano Google pics for this POI
-        self.pull_pano_info(poi)
-
-        # Convert latitude to radians, get distance between lon in radians.  
-        diff_lon = math.radians(poi.coords.lon - poi.pano_coords.lon)
-        lat1 = math.radians(poi.pano_coords.lat)
-        lat2 = math.radians(poi.coords.lat)
-
-        # Determine degree
-        x = math.sin(diff_lon) * math.cos(lat2)
-        y = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(diff_lon)
-    
-        bearing = math.atan2(x, y)
-        
-        # Convert radians to degrees and then compass bearing
-        bearing = math.degrees(bearing)
-        compass_bearing = (bearing + 360) % 360
-        return compass_bearing
-
     def pull_pano(self, poi: POI, num_pics=8):
         """
         Pulls num_pics many images of a POI and stitches them together into a panorama. 
@@ -291,18 +321,18 @@ class Session:
             imgs.append(self._pull_image(poi))
         
         # Stitch all the images of this bus stop together
-        pano = self.stitch_images(imgs)
+        pano = self._stitch_images(imgs)
 
         # Add either coordinate location or pano ID depending on what's in the POI
         if poi.pano_id:
             image_path = self.folder_path + "/" + f"{poi.pano_id}"+".jpg"
         else: 
-            image_path = self.folder_path + "/" + f"{poi.coords.to_string()}"+".jpg"
+            image_path = self.folder_path + "/" + f"{poi.coords}"+".jpg"
 
         # Write this image segment into the temp folder
         pano.save(image_path)
 
-    def stitch_images(self, imgs):
+    def _stitch_images(self, imgs):
         # Convert to PIL images
         pil_imgs = [Image.open(io.BytesIO(img_bytes)) for img_bytes in imgs]
 
@@ -316,29 +346,33 @@ class Session:
             x_offset += img.width
         return stitched
     
-    def write_log(self):
+    def write_log(self, name="log"):
         """
             Writes a CSV file with the coordinates, FOV, etc. of each POI.
-            Use at the END of a session, IE when you're finished pulling images.
+            Use at the END of a session, IE when finished pulling images.
         """
         log_df = pd.DataFrame(self.log)
-        log_path = self.folder_path + "/log.csv"
+        log_path = self.folder_path + f"/{name}.csv"
         log_df.to_csv(log_path)
         
-    def pull_response(self, params, context, base, coords):
+    def _pull_response(self, params, context, base, coords):
         # Print a sumamry of the request if debugging 
         if self.debug: print(f"{context} for {coords}")
 
-        # Issue request, except timeout
+        # Issue request
         try:
             response = requests.get(base, params=params, timeout=10)
-        except requests.exceptions.Timeout:
-            if self.debug: print("Request timed out!")
-            return Error(context, "request timed out!")
+        
+        # Catch any exceptions that are raised, return Error
+        except requests.exceptions.RequestException as e:
+            if self.debug: print(f"Error when {context}: {e}")
+            return Error(context, repr(e))
 
-        # Check if the request was successful
+        # Check the request's status code 
         if response.status_code == 200:
             return response
+
+        # Return error if the request was not successful
         else:
             response.close()
             return Error(context, f"({response.status_code}): {response.text}")

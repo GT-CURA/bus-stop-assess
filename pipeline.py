@@ -7,8 +7,9 @@ instance = Session("pics/test", debug=True)
 
 # Define a temp POI 
 test = POI(id="15", lat=33.838752, lon=-84.368854)
-
 points = multipoint.get_points(test)
+instance.capture_POI(test, points=points)
+instance.write_log()
 
 # Read MARTA's inventory of bus stops 
 bus_stops_atl = pd.read_csv("data/atl/MARTA_cleaned.csv")
@@ -26,19 +27,10 @@ def pull_row(row):
     instance.improve_coords(bus_stop)
 
     # Get pano ID, plug it into heading function
-    instance.estimate_heading(bus_stop)
+    instance._estimate_heading(bus_stop)
 
     # Pull picture using pano ID found earlier
     instance.pull_image(bus_stop, 45)
-
-def pull_multipic(row):
-    lat = row["lat"]
-    lon = row["lon"]
-    bus_stop = POI(None, lat=lat, lon=lon)
-    bus_stop.heading = row["heading"]
-    instance.pull_image(bus_stop)
-
-points.apply(pull_multipic, axis=1)
 
 # Pull each row in sample
 sampled.apply(pull_row, axis=1)

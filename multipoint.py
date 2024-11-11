@@ -7,7 +7,7 @@ from shapely.ops import linemerge, unary_union
 from streetview import POI
 from math import pi
 
-def generate_points(road, interval):
+def _generate_points(road, interval):
     """ Generates points along a line."""
     # Project line for meter-based calculations 
     road = road.to_crs("EPSG:3857")
@@ -26,7 +26,7 @@ def generate_points(road, interval):
     gdf = gpd.GeoDataFrame(geometry=interpolated_points, crs="EPSG:3857").to_crs("EPSG:4326")
     return gdf
 
-def calculate_headings(points):
+def _calculate_headings(points):
     """ Calculates headings between consecutive coordinates."""
     headings = []
     for i in range(len(points) - 1):
@@ -39,7 +39,7 @@ def calculate_headings(points):
         headings.append((azi + 360) % 360) 
     return headings
 
-def calculate_heading_between_points(x1, y1, x2, y2):
+def _calculate_heading_between_points(x1, y1, x2, y2):
     """Calculate headings to original point from each selected point."""
     azi = np.degrees(np.arctan2(x1 - x2, y1 - y2))
     return (azi + 360) % 360 
@@ -69,11 +69,11 @@ def get_points(poi: POI, interval=15):
     nearest_rd_all = road_lines[road_lines["name"] == nearest_rd_name]
 
     # Define interval and generate points along the nearest road
-    points = generate_points(nearest_rd_all, interval)
+    points = _generate_points(nearest_rd_all, interval)
 
     # Calculate headings if there are multiple points, remove last point 
     if len(points) > 1:
-        headings = calculate_headings(points.geometry)
+        headings = _calculate_headings(points.geometry)
         points = points.iloc[:-1]
         points['Heading'] = headings
 
@@ -92,7 +92,7 @@ def get_points(poi: POI, interval=15):
 
     # Transform original point to coordinates and calculate headings
     point_coords = original_pt.geometry.iloc[0].coords[0]
-    headings = [calculate_heading_between_points(point_coords[0], point_coords[1], p.x, p.y) for p in selected_points["geometry"]]
+    headings = [_calculate_heading_between_points(point_coords[0], point_coords[1], p.x, p.y) for p in selected_points["geometry"]]
 
     # Convert to a dataframe
     df = pd.DataFrame(data={'heading': headings,
