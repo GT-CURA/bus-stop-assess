@@ -44,7 +44,7 @@ def _calculate_heading_between_points(x1, y1, x2, y2):
     azi = np.degrees(np.arctan2(x1 - x2, y1 - y2))
     return (azi + 360) % 360 
 
-def get_points(poi: POI, points_before:int, points_after:int, interval=15):
+def get_points(poi: POI, points_before = 0, points_after = 0, interval=15):
     """ Gets a DataFrame of nearest points along the closest road to the POI along with headings facing towards the POI. 
         Args: 
             poi: The point of interest around which points will be located 

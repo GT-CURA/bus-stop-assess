@@ -105,7 +105,7 @@ class Session:
         self.log = []
     
     def capture_POI(self, poi:POI, points:pd.DataFrame = None, 
-                    fov = 85, heading:float=None, stitch:tuple[int, int]=None):
+                    fov = 85, heading:float=None, stitch = (0,0)):
         """
         Main method for capturing photos of a POI. 
         Args:
@@ -270,7 +270,7 @@ class Session:
         """
         Use pano's coords to determine the necessary camera FOV.
         """
-        # Get the coordinates of the pano Google pics for this POI
+        # Get the coordinates of the pano Google picks for this POI
         self._pull_pano_info(pic)
 
         # Convert latitude to radians, get distance between new & old lons in radians.  
