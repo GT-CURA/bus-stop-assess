@@ -44,8 +44,14 @@ def _calculate_heading_between_points(x1, y1, x2, y2):
     azi = np.degrees(np.arctan2(x1 - x2, y1 - y2))
     return (azi + 360) % 360 
 
-def get_points(poi: POI, interval=15):
-    """ Main function. Produces a dataframe of 3 points of 'interval' distance from each other."""
+def get_points(poi: POI, points_before:int, points_after:int, interval=15):
+    """ Gets a DataFrame of nearest points along the closest road to the POI along with headings facing towards the POI. 
+        Args: 
+            poi: The point of interest around which points will be located 
+            points_before: The number of points to be found before the closest one. 
+            points_after: The number of points to be found after the closest one. 
+            interval: The distance between each point in meters.
+    """
     # Make point into a geodataframe 
     original_pt = gpd.GeoDataFrame(geometry=[Point(poi.coords.lon, poi.coords.lat)], crs="EPSG:4326")
     
@@ -85,10 +91,10 @@ def get_points(poi: POI, interval=15):
     points = points.to_crs("EPSG:4326")
     original_pt = original_pt.to_crs("EPSG:4326")
 
-    # Select points 'interval' meters before and after the closest point
-    indices = [closest_index - 1, closest_index, closest_index + 1]
-    indices = [idx for idx in indices if idx >= 0 and idx < len(points)]
-    selected_points = points.iloc[indices]
+    # Select the closest point and the specified number of points before and after it
+    start_index = max(0, closest_index - points_before)
+    end_index = min(len(points), closest_index + points_after + 1)
+    selected_points = points.iloc[start_index:end_index]
 
     # Transform original point to coordinates and calculate headings
     point_coords = original_pt.geometry.iloc[0].coords[0]

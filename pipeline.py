@@ -7,8 +7,8 @@ instance = Session("pics/test", debug=True)
 
 # Define a temp POI 
 test = POI(id="15", lat=33.838752, lon=-84.368854)
-points = multipoint.get_points(test)
-instance.capture_POI(test, fov=45, stitch=(1,2))
+points = multipoint.get_points(test, num_points=3)
+instance.capture_POI(test, points=points, fov=45, stitch=(1,1))
 instance.write_log()
 
 # Read MARTA's inventory of bus stops 
