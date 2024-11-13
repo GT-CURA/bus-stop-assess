@@ -13,11 +13,11 @@ bus_shelters_nyc = pd.read_csv("data/nyc.csv")
 
 # Select signs
 stops = bus_stops_atl[bus_stops_atl["Bus Stop Type"] == "Shelter"]
-sampled = stops[502:525]
+sampled = bus_shelters_nyc[502:525]
 
 def pull_row(row):
     # Build POI, improve its coordinates
-    bus_stop = POI(row["Lat"], row["Lon"], row["Stop ID"])
+    bus_stop = POI(row["Latitude"], row["Longitude"], row["Shelter_ID"])
     sesh.improve_coords(bus_stop)
 
     # Run multipoint tool, capture POI
