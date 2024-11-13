@@ -17,7 +17,7 @@ def _generate_points(road, interval):
         road = linemerge(unary_union(road.geometry))
 
     # Calculate how many points need to be generated
-    num_points = int(road.length.iloc // interval) + 1 
+    num_points = int(road.length // interval) + 1 
 
     # Interpolate num_points many points along the line 
     interpolated_points = [road.interpolate(i*interval) for i in range(num_points)]
@@ -26,23 +26,21 @@ def _generate_points(road, interval):
     gdf = gpd.GeoDataFrame(geometry=interpolated_points, crs="EPSG:3857").to_crs("EPSG:4326")
     return gdf
 
-def _calculate_headings(points):
-    """ Calculates headings between consecutive coordinates."""
-    headings = []
-    for i in range(len(points) - 1):
-        # Calculate difference between this coordinate and its neighbor
-        delta_x = points[i + 1].x - points[i].x
-        delta_y = points[i + 1].y - points[i].y
+def calc_headings(points, original_pt):
+    # Get coords from original point
+    original_x, original_y = original_pt.geometry.iloc[0].coords[0]
 
-        # Calculate arctan2 of differences, then normalize
-        azi = np.degrees(np.arctan2(delta_x, delta_y)) * (180 / pi)
-        headings.append((azi + 360) % 360) 
-    return headings
+    # Find distance between points 
+    x_diff = np.array(points["geometry"].x) - original_x
+    y_diff = np.array(points["geometry"].y) - original_y
 
-def _calculate_heading_between_points(x1, y1, x2, y2):
-    """Calculate headings to original point from each selected point."""
-    azi = np.degrees(np.arctan2(x1 - x2, y1 - y2))
-    return (azi + 360) % 360 
+    # Find arctan2 of distance
+    headings = np.arctan2(y_diff, x_diff) * (180 / pi)
+
+    # Normalize 
+    normed_headings = (headings + 180) % 360
+    return normed_headings
+    
 
 def get_points(poi: POI, points_before = 0, points_after = 0, interval=15):
     """ Gets a DataFrame of nearest points along the closest road to the POI along with headings facing towards the POI. 
@@ -77,12 +75,6 @@ def get_points(poi: POI, points_before = 0, points_after = 0, interval=15):
     # Define interval and generate points along the nearest road
     points = _generate_points(nearest_rd_all, interval)
 
-    # Calculate headings if there are multiple points, remove last point 
-    if len(points) > 1:
-        headings = _calculate_headings(points.geometry)
-        points = points.iloc[:-1]
-        points['Heading'] = headings
-
     # Find the index of the point closest to the original point
     original_pt = original_pt.to_crs("EPSG:3857")
     points = points.to_crs("EPSG:3857")
@@ -94,14 +86,13 @@ def get_points(poi: POI, points_before = 0, points_after = 0, interval=15):
     # Select the closest point and the specified number of points before and after it
     start_index = max(0, closest_index - points_before)
     end_index = min(len(points), closest_index + points_after + 1)
-    selected_points = points.iloc[start_index:end_index]
+    selected_pts = points[start_index:end_index]
 
     # Transform original point to coordinates and calculate headings
-    point_coords = original_pt.geometry.iloc[0].coords[0]
-    headings = [_calculate_heading_between_points(point_coords[0], point_coords[1], p.x, p.y) for p in selected_points["geometry"]]
+    headings = calc_headings(selected_pts, original_pt)
 
     # Convert to a dataframe
     df = pd.DataFrame(data={'heading': headings,
-                            'lat': selected_points["geometry"].y, 
-                            'lon': selected_points["geometry"].x})
+                            'lat': selected_pts["geometry"].y, 
+                            'lon': selected_pts["geometry"].x})
     return df
