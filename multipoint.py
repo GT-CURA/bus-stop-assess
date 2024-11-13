@@ -17,7 +17,7 @@ def _generate_points(road, interval):
         road = linemerge(unary_union(road.geometry))
 
     # Calculate how many points need to be generated
-    num_points = int(road.length // interval) + 1 
+    num_points = int(road.length.iloc // interval) + 1 
 
     # Interpolate num_points many points along the line 
     interpolated_points = [road.interpolate(i*interval) for i in range(num_points)]

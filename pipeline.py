@@ -3,13 +3,7 @@ import pandas as pd
 import multipoint
 
 # Create new instances of streetview tools
-instance = Session("pics/test", debug=True)
-
-# Define a temp POI 
-test = POI(id="15", lat=33.838752, lon=-84.368854)
-points = multipoint.get_points(test, 2, 1)
-instance.capture_POI(test, points=points, fov=45)
-instance.write_log()
+sesh = Session("pics/stitched", debug=True, key_path="key.txt")
 
 # Read MARTA's inventory of bus stops 
 bus_stops_atl = pd.read_csv("data/atl/MARTA_cleaned.csv")
@@ -19,22 +13,20 @@ bus_shelters_nyc = pd.read_csv("data/nyc.csv")
 
 # Select signs
 stops = bus_stops_atl[bus_stops_atl["Bus Stop Type"] == "Shelter"]
-sampled = stops[500:502]
+sampled = stops[502:525]
 
 def pull_row(row):
     # Build POI, improve its coordinates
-    bus_stop = POI(row["Stop ID"], row["Lat"], row["Lon"])
-    instance.improve_coords(bus_stop)
+    bus_stop = POI(row["Lat"], row["Lon"], row["Stop ID"])
+    sesh.improve_coords(bus_stop)
 
-    # Get pano ID, plug it into heading function
-    instance._estimate_heading(bus_stop)
-
-    # Pull picture using pano ID found earlier
-    instance.pull_image(bus_stop, 45)
+    # Run multipoint tool, capture POI
+    points = multipoint.get_points(bus_stop, 0, 1)
+    sesh.capture_POI(bus_stop, points, 35, None, (1,0))
 
 # Pull each row in sample
 sampled.apply(pull_row, axis=1)
 
 # Write log 
-instance.write_log()
+sesh.write_log()
 print("done")
