@@ -7,26 +7,29 @@ from shapely.ops import linemerge, unary_union
 from streetview import POI
 from math import pi
 
-def _generate_points(road, interval):
+def _generate_points(road, interval, point, pts_before, pts_after):
     """ Generates points along a line."""
     # Project line for meter-based calculations 
     road = road.to_crs("EPSG:3857")
+    point = point.to_crs("EPSG:3857")
 
     # Merge into one road 
     if len(road) > 1: 
         road = linemerge(unary_union(road.geometry))
 
-    # Calculate how many points need to be generated
-    num_points = int(road.length // interval) + 1 
+    # Project the point onto the road
+    nearest_pt =  road.interpolate(road.project(point.geometry.iloc[0]))
+    start_distance = road.project(nearest_pt)
 
-    # Interpolate num_points many points along the line 
-    interpolated_points = [road.interpolate(i*interval) for i in range(num_points)]
+    # Add the specified number of points before and after the main one
+    distances = [start_distance + i * interval for i in range(-pts_before, pts_after + 1)]
+    interpolated_points = [road.interpolate(max(0, min(d, road.length))) for d in distances]
 
-    # Create a GeoDataFrame to store the interpolated points, convert to coords
-    gdf = gpd.GeoDataFrame(geometry=interpolated_points, crs="EPSG:3857").to_crs("EPSG:4326")
+    # Create a GeoDataFrame to store the interpolated points
+    gdf = gpd.GeoDataFrame(geometry=interpolated_points, crs="EPSG:3857")
     return gdf
 
-def calc_headings(points, original_pt):
+def _calc_headings(points, original_pt):
     # Get coords from original point
     original_x, original_y = original_pt.geometry.iloc[0].coords[0]
 
@@ -73,26 +76,17 @@ def get_points(poi: POI, points_before = 0, points_after = 0, interval=15):
     nearest_rd_all = road_lines[road_lines["name"] == nearest_rd_name]
 
     # Define interval and generate points along the nearest road
-    points = _generate_points(nearest_rd_all, interval)
-
-    # Find the index of the point closest to the original point
-    original_pt = original_pt.to_crs("EPSG:3857")
-    points = points.to_crs("EPSG:3857")
-    distances = points.distance(original_pt.geometry.iloc[0], False)
-    closest_index = distances.idxmin()
+    points = _generate_points(nearest_rd_all, interval, original_pt, points_before, points_after)
+    
+    # Convert back to coordinate form to calculate headings
     points = points.to_crs("EPSG:4326")
     original_pt = original_pt.to_crs("EPSG:4326")
 
-    # Select the closest point and the specified number of points before and after it
-    start_index = max(0, closest_index - points_before)
-    end_index = min(len(points), closest_index + points_after + 1)
-    selected_pts = points[start_index:end_index]
-
-    # Transform original point to coordinates and calculate headings
-    headings = calc_headings(selected_pts, original_pt)
+    # Calculate headings
+    headings = _calc_headings(points, original_pt)
 
     # Convert to a dataframe
     df = pd.DataFrame(data={'heading': headings,
-                            'lat': selected_pts["geometry"].y, 
-                            'lon': selected_pts["geometry"].x})
+                            'lat': points["geometry"].y, 
+                            'lon': points["geometry"].x})
     return df
