@@ -178,11 +178,8 @@ class Session:
             # Open as PIL image
             final_img = Image.open(BytesIO(img))
         
-        # Add either coordinate location or pano ID to path depending on what's in the POI
-        if pic.pano_id:
-            image_path = self.folder_path + "/" + f"{pic.pano_id}"+".jpg"
-        else: 
-            image_path = self.folder_path + "/" + f"{pic.coords}"+".jpg"
+        # Base pic name on POI ID and its number 
+        image_path = f"{self.folder_path}/{poi.id}_{pic.pic_number}"
 
         # Save the image, add the Pic object to the POI
         final_img.save(image_path)
@@ -314,35 +311,6 @@ class Session:
         pic.coords = Coord(pano_location["lat"], pano_location["lng"])
         pic.pano_id = response.json().get("pano_id")
         response.close()
-    
-    def pull_pano(self, poi: POI, num_pics=8):
-        """
-        Pulls num_pics many images of a POI and stitches them together into a panorama. 
-
-        Args:
-            poi: the POI that will be captured. 
-            num_pics: how many pics will be captured and stitched into the pano.
-        """
-        poi.fov = 360/num_pics
-        imgs = []
-
-        # Capture 'num_pics' many photos
-        for degree in range(0, 360, int(360/num_pics)):
-            # Save image into temp folder, get its path
-            poi.heading = degree
-            imgs.append(self._pull_image(poi))
-        
-        # Stitch all the images of this bus stop together
-        pano = self._stitch_images(imgs)
-
-        # Add either coordinate location or pano ID depending on what's in the POI
-        if poi.pano_id:
-            image_path = self.folder_path + "/" + f"{poi.pano_id}"+".jpg"
-        else: 
-            image_path = self.folder_path + "/" + f"{poi.coords}"+".jpg"
-
-        # Write this image segment into the temp folder
-        pano.save(image_path)
 
     def _stitch_images(self, imgs):
         # Convert to PIL images
