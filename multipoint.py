@@ -2,7 +2,7 @@ import geopandas as gpd
 import pandas as pd
 import osmnx as ox
 import numpy as np
-from shapely.geometry import Point
+from shapely.geometry import Point, LineString
 from shapely.ops import linemerge, unary_union
 from streetview import POI
 from math import pi
@@ -13,14 +13,17 @@ def _generate_points(road, interval, point, pts_before, pts_after):
     road = road.to_crs("EPSG:3857")
     point = point.to_crs("EPSG:3857")
 
-    # Merge into one road 
+    # Merge into one road
     if len(road) > 1: 
         road = linemerge(unary_union(road.geometry))
-    
+    else: 
+        # Convert to Linestring to prevent annoying errors 
+        road = road.geometry.iloc[0]
+
     # Project the point onto the road, then get distance to this point
     nearest_pt =  road.interpolate(road.project(point.geometry.iloc[0]))
     start_distance = road.project(nearest_pt)
-    
+
     # Iterate through the specified number of points, calculating distance and then interpolating onto road
     points = []
     for i in range(-pts_before, pts_after + 1):
@@ -74,9 +77,6 @@ def get_points(poi: POI, points_before = 0, points_after = 0, interval=15):
     # Find the nearest road to the point of interest
     nearest_rd = road_lines.iloc[road_lines.sindex.nearest(original_pt.iloc[0])[1]].iloc[0]
     nearest_rd_name = nearest_rd.get("name")
-
-    # Covnert to geoseries 
-    nearest_rd = gpd.GeoSeries([nearest_rd.geometry], crs="EPSG:4326")
 
     # Get all of the segments of this road within the bounding box, not just one. 
     nearest_rd_all = road_lines[road_lines["name"] == nearest_rd_name]
