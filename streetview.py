@@ -179,7 +179,7 @@ class Session:
             final_img = Image.open(BytesIO(img))
         
         # Base pic name on POI ID and its number 
-        image_path = f"{self.folder_path}/{poi.id}_{pic.pic_number}"
+        image_path = f"{self.folder_path}/{poi.id}_{pic.pic_number}.jpg"
 
         # Save the image, add the Pic object to the POI
         final_img.save(image_path)

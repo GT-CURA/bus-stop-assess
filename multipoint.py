@@ -16,17 +16,23 @@ def _generate_points(road, interval, point, pts_before, pts_after):
     # Merge into one road 
     if len(road) > 1: 
         road = linemerge(unary_union(road.geometry))
-
-    # Project the point onto the road
+    
+    # Project the point onto the road, then get distance to this point
     nearest_pt =  road.interpolate(road.project(point.geometry.iloc[0]))
     start_distance = road.project(nearest_pt)
-
-    # Add the specified number of points before and after the main one
-    distances = [start_distance + i * interval for i in range(-pts_before, pts_after + 1)]
-    interpolated_points = [road.interpolate(max(0, min(d, road.length))) for d in distances]
+    
+    # Iterate through the specified number of points, calculating distance and then interpolating onto road
+    points = []
+    for i in range(-pts_before, pts_after + 1):
+        # Calculate distance that this point should be from the main one. 
+        distance = start_distance + i * interval 
+        # Round to zero or max road length so that the resulting point doesn't surpass the road
+        distance = max(0, min(distance, road.length))
+        # Interpolate point onto road 
+        points.append(road.interpolate(distance))
 
     # Create a GeoDataFrame to store the interpolated points
-    gdf = gpd.GeoDataFrame(geometry=interpolated_points, crs="EPSG:3857")
+    gdf = gpd.GeoDataFrame(geometry=points, crs="EPSG:3857")
     return gdf
 
 def _calc_headings(points, original_pt):
