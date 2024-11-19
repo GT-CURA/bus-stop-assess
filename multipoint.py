@@ -16,8 +16,9 @@ def _generate_points(road, interval, point, pts_before, pts_after):
     # Merge into one road
     if len(road) > 1: 
         road = linemerge(unary_union(road.geometry))
+    
+    # Convert to Linestring to prevent annoying errors 
     else: 
-        # Convert to Linestring to prevent annoying errors 
         road = road.geometry.iloc[0]
 
     # Project the point onto the road, then get distance to this point

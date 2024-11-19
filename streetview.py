@@ -5,6 +5,7 @@ from PIL import Image
 from io import BytesIO
 from dataclasses import dataclass, asdict
 from os import makedirs, path
+import sqlite3
 
 @dataclass
 class Coord:
