@@ -13,7 +13,7 @@ shelters_nyc = pd.read_csv("data/nyc.csv")
 
 # Select signs
 shelters_atl = bus_stops_atl[bus_stops_atl["Bus Stop Type"] == "Shelter"]
-sampled = shelters_atl[525:1000]
+sampled = shelters_atl[525:530]
 
 def pull_row(row):
     # Build POI, improve its coordinates

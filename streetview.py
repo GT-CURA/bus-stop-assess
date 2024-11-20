@@ -4,8 +4,9 @@ import pandas as pd
 from PIL import Image
 from io import BytesIO
 from dataclasses import dataclass, asdict
-from os import makedirs, path
+from os import makedirs, path, remove
 import sqlite3
+from csv import writer
 
 @dataclass
 class Coord:
@@ -102,8 +103,26 @@ class Session:
         if not path.exists(self.folder_path):
             makedirs(self.folder_path)
         
-        # Create log for this session
-        self.log = []
+        # Set up SQLite database and create log 
+        self.db_path = f"{self.folder_path}/log.db"
+        self.db_connect = sqlite3.connect(self.db_path)
+        self.db_cursor = self.db_connect.cursor()
+        self.db_cursor.execute("""
+            CREATE TABLE IF NOT EXISTS stops (
+                poi_id TEXT,
+                poi_lat REAL,
+                poi_lon REAL,
+                poi_og_lat REAL,
+                poi_og_lon REAL,
+                fov REAL,
+                errors TEXT,
+                pic_number INTEGER,
+                pic_lat REAL,
+                pic_lon REAL,
+                heading REAL
+            )
+        """)
+        self.db_connect.commit()
     
     def capture_POI(self, poi:POI, points:pd.DataFrame = None, 
                     fov = 85, heading:float=None, stitch = (0,0)):
@@ -145,7 +164,7 @@ class Session:
             self._capture_pic(poi, pic)
         
         # Write this POI's entry/entries into the log 
-        [self.log.append(entry) for entry in poi.get_entry()]
+        self._commit_entry(poi)
 
     def _capture_pic(self, poi: POI, pic: _Pic):
         # Handle image stitching 
@@ -327,14 +346,61 @@ class Session:
             x_offset += img.width
         return stitched
     
-    def write_log(self, name="log"):
+    def _commit_entry(self, poi: POI):
         """
-            Writes a CSV file with the coordinates, FOV, etc. of each POI.
-            Use at the END of a session, IE when finished pulling images.
+            Uses the POI's get_entry() method to get an entry once pulled, then stores it in the database.
         """
-        log_df = pd.DataFrame(self.log)
-        log_path = self.folder_path + f"/{name}.csv"
-        log_df.to_csv(log_path)
+        # POI will return multiple entries if multiple Pics were pulled
+        for entry in poi.get_entry():
+
+            # Add entry into database
+            self.db_cursor.execute("""
+                INSERT INTO stops (poi_id, poi_lat, poi_lon, poi_og_lat, poi_og_lon, fov, errors,
+                                   pic_number, pic_lat, pic_lon, heading)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                entry.get('poi_id'),
+                entry.get('poi_lat'),
+                entry.get('poi_lon'),
+                entry.get('poi_og_lat'),
+                entry.get('poi_og_lon'),
+                entry.get('fov'),
+                ",".join(entry['errors']) if entry.get('errors') else None,
+                entry.get('pic_number'),
+                entry.get('pic_lat'),
+                entry.get('pic_lon'),
+                entry.get('heading')
+            ))
+        self.db_connect.commit()
+
+    def write_log(self, name="log", delete_db= True):
+        """
+        Exports the SQLite log to a CSV file. Call once a session has finished, IE when done pulling images.
+        Args:
+            name: What the log file will be titled
+            delete_db: Whether or not to delete the SQLite3 database file bc I couldn't decide if that was a good idea or not
+        """
+        log_path = f"{self.folder_path}/{name}.csv"
+        with open(log_path, "w", newline="") as csvfile:
+            csv_writer = writer(csvfile)
+
+            # Write header
+            csv_writer.writerow(["poi_id", "poi_lat", "poi_lon", "poi_og_lat", "poi_og_lon",
+                             "fov", "errors", "pic_number", "pic_lat", "pic_lon", "heading"])
+            
+            # Write data
+            for row in self.db_cursor.execute("SELECT * FROM stops"):
+                csv_writer.writerow(row)
+
+        # Send msg if debugging is enabled 
+        if self.debug: print(f"Log written to {log_path}")
+
+        # Delete DB File or just close connection
+        if delete_db:
+            self.db_connect.close()
+            remove(self.db_path)
+        else: 
+            self.db_connect.close()
         
     def _pull_response(self, params, context, base, coords):
         # Print a sumamry of the request if debugging 
