@@ -3,14 +3,14 @@ import pandas as pd
 import multipoint
 
 # Create new instances of streetview tools
-sesh = Session("pics/benches_200-537", debug=True, key_path="key.txt")
+sesh = Session("pics/benches_338-537", debug=True, key_path="key.txt")
 
 # Read MARTA's inventory of bus stops 
 bus_stops_atl = pd.read_csv("data/atl/MARTA_cleaned.csv")
 
 # Select signs
 benches_atl = bus_stops_atl[bus_stops_atl["Bus Stop Type"] == "Bench"]
-sampled = benches_atl[274:275]
+sampled = benches_atl[338:]
 
 def pull_row(row):
     # Build POI, improve its coordinates

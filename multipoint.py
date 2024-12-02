@@ -80,13 +80,13 @@ def get_points(poi: POI, points_before = 0, points_after = 0, interval=15):
     nearest_rd_name = nearest_rd.get("name")
 
     # Get all of the segments of this road within the bounding box, not just one. 
-    if not isnan(nearest_rd_name):
+    if type(nearest_rd_name) == str:
         nearest_rd_all = road_lines[road_lines["name"] == nearest_rd_name]
     # Sometimes roads lack a name. Try the tiger base name 
-    elif not isnan(nearest_rd.get("tiger:name_base")): 
+    elif type(nearest_rd.get("tiger:name_base")) == str: 
         nearest_rd_all = road_lines[road_lines["tiger:name_base"] == nearest_rd.get("tiger:name_base")]
     else:
-        print("Encountered error when trying to get multipoint df")
+        print(f"Multipoint errored for {poi.id}")
         return None
 
     # Define interval and generate points along the nearest road
