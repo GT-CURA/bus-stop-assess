@@ -16,14 +16,12 @@ sampled = stops_nyc[100:500]
 
 def pull_row(row):
     # Build POI, improve its coordinates
-    #stop = POI(row["Lat"], row["Lon"], row["Stop ID"])
     stop = POI(row["Latitude"], row["Longitude"], row["Shelter_ID"])
     sesh.improve_coords(stop)
 
     # Run multipoint tool, capture POI
     points = multipoint.get_points(stop, 1, 1, 10)
     sesh.capture_POI(stop, points, 35, None, (0,1))
-    print("")
 
 # Pull each row in sample
 sampled.apply(pull_row, axis=1)
