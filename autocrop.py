@@ -44,15 +44,17 @@ class Box:
         new_x2 = self.x2 - left_bound
 
         # Convert to YOLO format 
-        self.new_box_x = ((new_x1 + new_x2) / 2) / new_w
+        self.to_yolo(new_x1, new_x2, new_w)
+    
+    def to_yolo(self, x1, x2, w):
+        self.new_box_x = ((x1 + x2) / 2) / w
         self.new_box_y = ((self.y1 + self.y2) / 2) / self.img_h 
-        self.new_width = (new_x2 - new_x1) / new_w
+        self.new_width = (x2 - x1) / w
         self.new_box_h = self.box_h 
 
-    
-    def paste(self):
+    def paste(self, changed = True):
         return f"{self.label} {self.new_box_x} {self.new_box_y} {self.new_width} {self.box_h}"
-
+    
 def make_folder(folder_path, name):
     da_path = f"{folder_path}/{name}"
     if not os.path.exists(da_path):
@@ -91,14 +93,46 @@ def run(path:str, optimal_width=640, max_width=800, min_padding=50):
         # See if image needs to be split
         window = max_x-min_x
         if window > max_width:
-            print("uhhhhhhhhh")
+            # Find midpoint between images
+            midpoint = img_w // 2 
+
+            # split the image into left and right
+            left_img = img[:, 0:midpoint]
+            right_img = img[:, midpoint:img_w]
+
+            # Save images
+            img_path = make_folder(cropped_path, "images")
+            imwrite(f"{img_path}/left_{image_name}", left_img)
+            imwrite(f"{img_path}/right_{image_name}", right_img)
+
+            # Relabel. idk figure it out yourself im tired 
+            label_path = make_folder(cropped_path, "labels")
+            right_boxes = []
+            left_boxes = []
+            [right_boxes.append(box) for box in boxes if box.x1 >= midpoint]
+            [left_boxes.append(box) for box in boxes if box.x1 < midpoint]
+
+            with open(f"{label_path}/right_{file_name}", 'w', encoding='utf-8') as file:
+                for box in right_boxes:
+                    box.adjust_bounds(midpoint, img_w)
+                    file.write(box.paste() + '\n')
+
+            with open(f"{label_path}/left_{file_name}", 'w', encoding='utf-8') as file:
+                for box in left_boxes:
+                    box.to_yolo(box.x1, box.x2, midpoint)
+                    file.write(box.paste() + '\n')
+                    
         else:
             # The number of pixels to be added to accomodate padding 
             desired_space = window + min_padding*2
 
             # If the space needed exceeds optimal width, make sure it's less than max 
             if desired_space > optimal_width:
-                margin = max(desired_space, max_width)
+                if desired_space > max_width:
+                    margin = max_width - desired_space
+                else:
+                    margin = min_padding*2
+
             # Otherwise find space needed to fill optimal width 
             else: 
                 margin = optimal_width - window
@@ -131,4 +165,4 @@ def run(path:str, optimal_width=640, max_width=800, min_padding=50):
                     box.adjust_bounds(left_bound, right_bound)
                     file.write(box.paste() + '\n')
 
-run("/home/dev/src/bus-stop-assess/datasets/crop")
+run("/home/dev/src/bus-stop-assess/datasets/9")
