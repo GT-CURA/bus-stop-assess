@@ -72,9 +72,15 @@ def run(path:str, optimal_width=640, max_width=800, min_padding=50):
         img = imread(f"{path}/images/{image_name}")
         img_h, img_w = img.shape[:2]
 
+        # Continue to next iteration if size is already good 
+        if img_w <= optimal_width:
+            continue 
+
+        # Gotta put a comment here bc otherwise it'll look ugly 
         boxes = []
         min_x = img_w
         max_x = 0
+
         # Open labels file, step through each line to read boxes
         with open(f"{path}/labels/{file_name}", 'r') as file: 
             for line in file.readlines(): 
@@ -165,4 +171,4 @@ def run(path:str, optimal_width=640, max_width=800, min_padding=50):
                     box.adjust_bounds(left_bound, right_bound)
                     file.write(box.paste() + '\n')
 
-run("/home/dev/src/bus-stop-assess/datasets/9")
+run("/home/dev/src/bus-stop-assess/datasets/others")
