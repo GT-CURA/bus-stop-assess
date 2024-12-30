@@ -41,10 +41,24 @@ class _Pic:
         return dict
 
 class POI:
-    """ A point of interest to capture pictures of. """
-    def __init__(self, lat:float, lon:float, id=None, keyword="bus stop"):
+    """ A Point of Interest to capture pictures of.
+    Attributes: 
+        lat: Latitude of the POI 
+        lon: Longitude of the POI 
+        id: Some value to use as an identifier for the POI. Used for the image's name 
+        keyword: The search criteria used when improving coordinates through the Maps API. 
+        coord_pair: Strips the longitude and latitude from a coordinate pair
+    """
+    def __init__(self, lat:float, lon:float, id, keyword="bus stop", coord_pair:str=None):
+        # For datasets that specify a coord pair 
+        if coord_pair:
+            lati, long = coord_pair.strip('()').split(', ')
+            self.coords = Coord(lati, long)
+        else: 
+            self.coords = Coord(lat, lon)
+
+        # All other attributes
         self.id = id
-        self.coords = Coord(lat, lon)
         self.keyword = keyword
         self.fov: float = None
         self.errors = []

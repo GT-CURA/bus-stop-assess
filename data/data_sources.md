@@ -17,3 +17,8 @@ MARTA.csv:
 - Desc: All MARTA bus stops in metro ATL area
 - Link: Got from MARTA staff. 
 - Last Update: Unknown, received in September   
+
+kc.csv: 
+- Desc: All Kansas City (KCATA) bus stops
+- Link: https://data.kcmo.org/Transportation/KCATA-Bus-Stops/bd2s-bfst/about_data
+- Last Update: 29 December 2023 
