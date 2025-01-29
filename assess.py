@@ -16,22 +16,18 @@ def pull_imgs():
         stops = geojson.load(f)['features']
     
     # Iterate through stops
-    i=0
     for stop in stops:
-        if i<2:
-            # Build POI
-            coords = stop["geometry"]["coordinates"]
-            stop_id = stop["properties"]["MARTA_Inventory_Within.Stop_ID"]
-            poi = POI(id=stop_id, lat=coords[1], lon=coords[0])
-            
-            # Update coords, use multipoint 
-            sesh.improve_coords(poi)
-            points = multipoint.get_points(poi, 1, 1, interval=6)
-            
-            # Pull image
-            sesh.capture_multipoint(poi, points, 45)
-            print("test")
-            i+=1
+        # Build POI
+        coords = stop["geometry"]["coordinates"]
+        stop_id = stop["properties"]["MARTA_Inventory_Within.Stop_ID"]
+        poi = POI(id=stop_id, lat=coords[1], lon=coords[0])
+        
+        # Update coords, use multipoint 
+        # sesh.improve_coords(poi)
+        points = multipoint.get_points(poi, 1, 1, interval=6)
+        
+        # Pull image
+        # sesh.capture_multipoint(poi, points, 45)
 
     sesh.write_log()
 

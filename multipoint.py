@@ -72,7 +72,7 @@ def get_points(poi: POI, points_before = 0, points_after = 0, interval=15):
 
     # Retrieve road data within the bounding box from OSM
     tags = {"highway": ["motorway", "trunk", "primary", "secondary", "tertiary", "residential"]}
-    osm_roads = ox.features_from_bbox(bbox[3], bbox[1], bbox[2], bbox[0], tags=tags)
+    osm_roads = ox.features_from_bbox(bbox, tags)
     road_lines = osm_roads[osm_roads.geom_type == 'LineString'].to_crs("EPSG:4326")
 
     # Find the nearest road to the point of interest
