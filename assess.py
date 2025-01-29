@@ -23,10 +23,11 @@ def pull_imgs():
         
         # Update coords, use multipoint 
         sesh.improve_coords(poi)
-        points = multipoint.get_points(poi, 1, 1, interval=11)
+        points = multipoint.get_points(poi, 1, 1, interval=5)
         
         # Pull image
-        sesh.capture_POI(poi, points, 45)
+        sesh.capture_multipoint(poi, points, 45)
+        print("test")
 
 pull_imgs()
 # Go through the folder and 
