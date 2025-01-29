@@ -2,10 +2,10 @@ import geopandas as gpd
 import pandas as pd
 import osmnx as ox
 import numpy as np
-from shapely.geometry import Point, LineString
+from shapely.geometry import Point
 from shapely.ops import linemerge, unary_union
 from streetview import POI
-from math import pi, isnan
+from math import pi
 
 def _generate_points(road, interval, point, pts_before, pts_after):
     """ Generates points along a line."""
