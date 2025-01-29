@@ -1,10 +1,13 @@
 import cv2
 import numpy as np
-import onnxruntime as ort
+# import onnxruntime as ort
 import ultralytics as ua
-from roboflow import Roboflow
+# from roboflow import Roboflow
 import os
 
+"""
+I stopped using this file!
+"""
 class BusStopCV:
     """
     Runs the University of Washington Makeability Lab's BusStopCV model.
@@ -171,7 +174,7 @@ class yolo:
 
         # Train model, use patience param to stop after 100 epochs if performance isn't increasing 
         #results = model.train(data="first/data.yaml", epochs=300, imgsz=640, patience=100)
-
+        
         # Export model 
         #model.export(format="onnx")
         #yolo task=detect mode=train model=yolo11n.pt data=/home/dev/src/gra/Bus-Stop-Classification/datasets/first/data.yaml epochs=300 imgsz=640 workers=0 patience=100 plots=True
