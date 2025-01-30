@@ -6,6 +6,7 @@ from pyproj import Transformer
 from streetview import POI, Pic, Coord
 import math
 from services import Error
+import numpy as np
 
 def _get_road(poi: POI, original_pt):
     """ Finds the road that the POI most likely sits on. Has to stitch multiple segments together. """
@@ -66,17 +67,18 @@ def _generate_points(road, interval, main_pt, num_pts):
     # Create a GeoDataFrame to store the interpolated points
     gdf = gpd.GeoDataFrame(geometry=points, crs="EPSG:3857")
     return gdf
-def calc_headings(self, points, original_pt):
+
+def _calc_headings(points, original_pt):
         """ Calculates headings ST every point's heading is directed at POI. """
         # Get coords from original point
         original_x, original_y = original_pt.geometry.iloc[0].coords[0]
 
         # Find distance between points 
-        x_diff = self.np.array(points["geometry"].x) - original_x
-        y_diff = self.np.array(points["geometry"].y) - original_y
+        x_diff = np.array(points["geometry"].x) - original_x
+        y_diff = np.array(points["geometry"].y) - original_y
 
         # Find arctan2 of distance
-        headings = self.np.arctan2(y_diff, x_diff) * (180 / self.math.pi)
+        headings = np.arctan2(y_diff, x_diff) * (180 / math.pi)
 
         # Normalize 
         normed_headings = (headings + 180) % 360
@@ -106,11 +108,11 @@ def get_points(poi: POI, num_points=(0,0), interval=15):
     # Calculate headings
     headings = _calc_headings(points, original_pt)
 
-    # Convert to a dataframe
-    df = pd.DataFrame(data={'heading': headings,
-                            'lat': points["geometry"].y, 
-                            'lon': points["geometry"].x})
-    return df
+    # Convert each point to a Pic and add to POI
+    for i, row in points.iterrows():
+        coord = Coord(row['geometry'].y, row['geometry'].x)
+        pic = Pic(i+1, headings[i], coords=coord)
+        poi.pics.append(pic)
 
 class Autoincrement:
     from services import Requests, Misc

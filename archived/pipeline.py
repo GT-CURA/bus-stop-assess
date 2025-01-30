@@ -16,12 +16,11 @@ sampled = stops_sf[stops_sf["SHELTER"] == 1].sample(150)
 
 def pull_row(row):
     # Build POI, improve its coordinates
-    # stop = POI(row["Latitude"], row["Longitude"], row["Shelter_ID"])
     # sesh.improve_coords(stop)
     stop = POI(lat=row["LATITUDE"], lon=row["LONGITUDE"], id=row["OBJECTID"])
     # Run multipoint tool, capture POI
-    points = multipoint.get_points(stop, 1, 1, 10)
-    sesh.capture_POI(stop, points, 35, None, (0,1))
+    points = multipoint.get_points(stop, (1,1), 10)
+    sesh.capture_POI(stop)
 
 # Pull each row in sample
 sampled.apply(pull_row, axis=1)
