@@ -1,5 +1,3 @@
-import math
-import pandas as pd
 from PIL import Image
 from io import BytesIO
 from dataclasses import dataclass, asdict
@@ -63,7 +61,7 @@ class POI:
         self.place_id = None
 
 class Session:
-    from tools import Requests, Log
+    from services import Requests, Log, Misc
 
     def __init__(self, folder_path: str, key_path="key.txt", pic_dims=(640, 640), 
                  debug=False, logging=True):
@@ -89,11 +87,13 @@ class Session:
         """
         Capture image(s) of a POI. 
         Pass the POI into the multipoint class first if you're trying to capture multiple vantage points of the POI! 
+
         Args:
-            poi: The POI to pull pictures of 
-            fov: The field of view for all images 
-            heading: The angle that the picture will be taken at, in degrees. Leave as None to automatically estimate. 
-            stitch: The number of images that will be stitched to the primary one. A tuple of (num imgs to add clockwise, counterclockwise) 
+            poi (POI): The POI to pull pictures of 
+            fov (int): The field of view for all images 
+            heading (float): The angle that the picture will be taken at, in degrees. Leave as None to automatically estimate. 
+            stitch (int, int): Number of images to be stitched to the primary one. A tuple of (num imgs to add clockwise, counterclockwise) 
+
         """
         # Check and update FOV 
         if 120 < fov < 10: 
@@ -120,7 +120,7 @@ class Session:
             # Estimate heading if none is provided 
             if heading == None:
                 self.requests.pull_pano_info(pic)
-                self._estimate_heading(pic, poi)
+                self.Misc.estimate_heading(pic, poi)
             
             # Pull pic 
             self._capture_pic(poi, pic)
@@ -159,25 +159,6 @@ class Session:
 
         # Save the image
         final_img.save(image_path)
-
-    def _estimate_heading(self, pic: Pic, poi: POI):
-        """
-        Use pano's coords to determine the necessary camera heading.
-        """
-        # Convert latitude to radians, get distance between pic & POI lons in radians.  
-        diff_lon = math.radians(poi.coords.lon - pic.coords.lon)
-        old_lat = math.radians(pic.coords.lat)
-        new_lat = math.radians(poi.coords.lat)
-
-        # Determine degree
-        x = math.sin(diff_lon) * math.cos(new_lat)
-        y = math.cos(old_lat) * math.sin(new_lat) - math.sin(old_lat) * math.cos(new_lat) * math.cos(diff_lon)
-        heading = math.atan2(x, y)
-        
-        # Convert radians to degrees, normalize
-        heading = math.degrees(heading)
-        heading = (heading + 360) % 360
-        pic.heading = heading
 
     def _stitch_images(self, imgs):
         # Convert to PIL images

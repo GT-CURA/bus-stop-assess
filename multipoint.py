@@ -1,12 +1,11 @@
 import geopandas as gpd
 import osmnx as ox
-import numpy as np
 from shapely.geometry import Point
-from shapely.ops import linemerge, unary_union, transform
+from shapely.ops import linemerge, unary_union
 from pyproj import Transformer
 from streetview import POI, Pic, Coord
 import math
-from tools import Error
+from services import Error
 
 def _get_road(poi: POI, original_pt):
     """ Finds the road that the POI most likely sits on. Has to stitch multiple segments together. """
@@ -67,22 +66,21 @@ def _generate_points(road, interval, main_pt, num_pts):
     # Create a GeoDataFrame to store the interpolated points
     gdf = gpd.GeoDataFrame(geometry=points, crs="EPSG:3857")
     return gdf
+def calc_headings(self, points, original_pt):
+        """ Calculates headings ST every point's heading is directed at POI. """
+        # Get coords from original point
+        original_x, original_y = original_pt.geometry.iloc[0].coords[0]
 
-def _calc_headings(points, original_pt):
-    """ Calculates headings ST every point's heading is directed at POI. """
-    # Get coords from original point
-    original_x, original_y = original_pt.geometry.iloc[0].coords[0]
+        # Find distance between points 
+        x_diff = self.np.array(points["geometry"].x) - original_x
+        y_diff = self.np.array(points["geometry"].y) - original_y
 
-    # Find distance between points 
-    x_diff = np.array(points["geometry"].x) - original_x
-    y_diff = np.array(points["geometry"].y) - original_y
+        # Find arctan2 of distance
+        headings = self.np.arctan2(y_diff, x_diff) * (180 / self.math.pi)
 
-    # Find arctan2 of distance
-    headings = np.arctan2(y_diff, x_diff) * (180 / math.pi)
-
-    # Normalize 
-    normed_headings = (headings + 180) % 360
-    return normed_headings
+        # Normalize 
+        normed_headings = (headings + 180) % 360
+        return normed_headings
 
 def get_points(poi: POI, num_points=(0,0), interval=15):
     """ Gets a DataFrame of nearest points along the closest road to the POI along with headings facing towards the POI.
@@ -114,32 +112,14 @@ def get_points(poi: POI, num_points=(0,0), interval=15):
                             'lon': points["geometry"].x})
     return df
 
-class Autospacer:
-    from tools import Requests
+class Autoincrement:
+    from services import Requests, Misc
 
     def __init__(self, key_path:str, debug=True):
         self.requests = self.Requests(key=open(key_path, "r").read(),
                                       pic_dims=None,
                                       debug=debug)
-
-    def _estimate_heading(self, pic: Pic, poi: POI):
-        """
-        Use pano's coords to determine the necessary camera heading.
-        """
-        # Convert latitude to radians, get distance between pic & POI lons in radians.  
-        diff_lon = math.radians(poi.coords.lon - pic.coords.lon)
-        old_lat = math.radians(pic.coords.lat)
-        new_lat = math.radians(poi.coords.lat)
-
-        # Determine degree bearing
-        x = math.sin(diff_lon) * math.cos(new_lat)
-        y = math.cos(old_lat) * math.sin(new_lat) - math.sin(old_lat) * math.cos(new_lat) * math.cos(diff_lon)
-        heading = math.atan2(x, y)
-        
-        # Convert from radians to degrees, normalize
-        heading = math.degrees(heading)
-        heading = (heading + 360) % 360
-        pic.heading = heading
+        self.debug = debug
 
     def _check_redundancy(self, min_dist, add_dist, panos, rd, poi:POI):
             # Calculate distance that this point should be from the main one. 
@@ -165,7 +145,7 @@ class Autospacer:
                 # Add to panos so that it won't be used again
                 panos.append(pic.pano_id)
                 # Calculate the heading bc why not 
-                self._estimate_heading(pic, poi)
+                self.Misc.estimate_heading(pic, poi)
                 # Add the pic to the POI, return True to break the loop
                 poi.pics.append(pic)
                 return True

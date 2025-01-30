@@ -1,13 +1,76 @@
 import cv2
 import numpy as np
-# import onnxruntime as ort
 import ultralytics as ua
-# from roboflow import Roboflow
 import os
+import json
 
-"""
-I stopped using this file!
-"""
+class BusStopAssess:
+    """
+    Wrapper for ultralytics' yolo module. 
+    """
+    def __init__(self, model_path = "models/best.pt"):
+        # Set up model
+        self.model = ua.YOLO(model_path)
+    
+    def infer(self, image_paths=None, input_folder=None, output_folder="output"):
+        """Runs the model with inputted images. Specify a folder path to infer every image in the folder."""
+        # Ensure that input is provided
+        if image_paths == None and input_folder == None: 
+            print("No input specified")
+            return 
+        
+        # Gather the names of each file in the folder if a folder path is specified 
+        if input_folder:
+            file_names = [f"{input_folder}/{file}" for file in os.listdir(input_folder)]
+            image_paths=file_names
+
+        # Run model
+        results = self.model(image_paths)
+        for result in results:
+            # Extract the name from the result's path bc I can't think of a better way to do this
+            name = result.path.rsplit('/')[-1]
+
+            # Make sure the folder exists bc I keep forgetting to 
+            if not os.path.exists(output_folder): os.makedirs(output_folder)
+
+            # Save output image
+            result.save(filename=f"{output_folder}/{name}")
+    
+    def infer_log(self, input_folder:str, min_conf=.6, output_folder:str=None):
+        """
+        When supplied with the log from a streetview capture session, will return
+        the classes with confidence scores for each bus stop. Images must be in same folder as log!
+        Args:
+            input_folder: Folder containing BOTH the log and images.
+            min_conf: Minimum confidence score required to be part of results.
+            output_folder: If you want the outputted images to be saved, specify a path here. 
+        """
+        # Open log
+        with open(f"{input_folder}/log.json") as f:
+            stops = json.load(f)
+        
+        # Iterate through each POI
+        results = {}
+        for poi_id in stops:
+            # Get the actual stop
+            stop = stops[poi_id]
+            
+            # Iterate through pics, getting outputs
+            pic_results = {}
+            for pic in stop['pictures']:
+                # Determine path of this image and plug it into model
+                img_path = f"{input_folder}/{poi_id}_{pic['pic_number']}.jpg"
+                output = self.model(img_path, conf=min_conf)[0]
+
+                # Get class and corresponding conf score for each box detected
+                pic_results[pic['pic_number']] = [(int(box.cls), float(box.conf)) for box in output.boxes]
+
+                # Save images if requested
+                output.save(filename=f"{output_folder}/{poi_id}_{pic['pic_number']}.jpg")
+            # Add results to this poi's dict entry
+            results[poi_id] = pic_results
+        return results
+
 class BusStopCV:
     """
     Runs the University of Washington Makeability Lab's BusStopCV model.
@@ -128,68 +191,3 @@ class BusStopCV:
             cv2.putText(final, label, (bounds[0], bounds[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
         return final
 
-class yolo:
-    """
-    Wrapper for ultralytics' yolo module. 
-    """
-    def __init__(self, model_path = "models/best.pt"):
-        # Set up model
-        self.model = ua.YOLO(model_path)
-    
-    def infer(self, image_paths=None, input_folder=None, output_folder="output"):
-        """Runs the model with inputted images. Specify a folder path to infer every image in the folder."""
-        # Ensure that input is provided
-        if image_paths == None and input_folder == None: 
-            print("No input specified")
-            return 
-        
-        # Gather the names of each file in the folder if a folder path is specified 
-        if input_folder:
-            file_names = [f"{input_folder}/{file}" for file in os.listdir(input_folder)]
-            image_paths=file_names
-
-        # Run model
-        results = self.model(image_paths)
-        for result in results:
-            # Extract the name from the result's path bc I can't think of a better way to do this
-            name = result.path.rsplit('/')[-1]
-
-            # Make sure the folder exists bc I keep forgetting to 
-            if not os.path.exists(output_folder): os.makedirs(output_folder)
-
-            # Save output image
-            result.save(filename=f"{output_folder}/{name}")
-    
-    def train(self):
-        # Check hardware & load pre-trained model from ultralytics
-        #ua.checks()
-        #model = ua.YOLO("models/yolo11n.pt")
-
-        # Download dataset
-        key = open("keys/roboflow.txt", "r").read()
-        rf = Roboflow(api_key=key)
-        project = rf.workspace("brycetjones").project("bus-stop-classification")
-        version = project.version(2)
-        dataset = version.download("yolov11", location="datasets")
-
-        # Train model, use patience param to stop after 100 epochs if performance isn't increasing 
-        #results = model.train(data="first/data.yaml", epochs=300, imgsz=640, patience=100)
-        
-        # Export model 
-        #model.export(format="onnx")
-        #yolo task=detect mode=train model=yolo11n.pt data=/home/dev/src/gra/Bus-Stop-Classification/datasets/first/data.yaml epochs=300 imgsz=640 workers=0 patience=100 plots=True
-
-
-
-    def to_onnx(self):
-        self.model.export(format="onnx")
-    
-    def deploy_to_roboflow(self, model_path):
-        # configure roboflow 
-        key = open("keys/roboflow.txt", "r").read()
-        rf = Roboflow(api_key=key)
-        project = rf.workspace("brycetjones").project("bus-stop-classification")
-        version = project.version(1)
-
-        # Deploy model to roboflow
-        version.deploy("yolov11", model_path, "best.pt")
