@@ -29,6 +29,7 @@ class Pic:
     stitch_counter: int = 0
     coords: Coord = None
     pano_id: str = None
+    date: str = None
 
     def to_dict(self):
         # Modifies the dictionary returned by asdict() to break coords into lon/lat
@@ -58,6 +59,8 @@ class POI:
         self.errors = []
         self.pics = []
         self.original_coords = None
+        self.place_name = None
+        self.place_id = None
 
 class Session:
     from tools import Requests, Log
@@ -80,6 +83,7 @@ class Session:
         # Variables
         self.debug = debug
         self.pic_dims = pic_dims
+        self.place_ids = []
     
     def capture_POI(self, poi:POI, fov = 85, heading:float=None, stitch = (0,0)):
         """
@@ -189,13 +193,14 @@ class Session:
             x_offset += img.width
         return stitched
     
-    def improve_coords(self, poi: POI):
+    def improve_coords(self, poi: POI, verify_unique=False):
         """
         Pull Google's coordinates for a POI in the event that the provided coordinates suck. 
         Will use the 'nearby search' tool in the Google Maps API to find the nearest 'keyword'
         to the POI's location and update the POI's coords acoordingly (haha).  
         Args:
-            poi: The point of interest that needs to have its coords improved. 
+            poi: The point of interest that needs to have its coords improved.
+            verify_unique: Ensure that this place hasn't been pulled before. 
         """
         # Find nearest google maps 'business' of type keyword 
         nearest = self.requests.pull_closest(poi) 
@@ -203,13 +208,20 @@ class Session:
         # Get the location from the results
         location = nearest['geometry']['location']
 
-        # Update the POI 
+        # Update the POI's coords
         poi.original_coords = poi.coords
         updated_coord = Coord(location['lat'], location['lng'])
         poi.coords = updated_coord
 
-        # Return the new coords 
-        return updated_coord
+        # Ensure this hasn't been pulled before
+        poi.place_name = nearest['name']
+        poi.place_id = nearest['place_id']
+        if verify_unique:
+            if poi.place_id in self.place_ids:
+                if self.debug: print(f"[WARNING] POI with ID {poi.id} has been pulled before, skipping!")
+                return False
+            self.place_ids.append(poi.place_name)
+            return True
 
     def write_log(self, name="log", delete_db=True):
         """

@@ -109,6 +109,7 @@ class Requests:
         pano_location = response.json().get("location")
         pic.coords = Coord(pano_location["lat"], pano_location["lng"])
         pic.pano_id = response.json().get("pano_id")
+        pic.date = response.json().get("date")
         response.close()
 
     def _pull_response(self, params, context, base, coords):
@@ -162,11 +163,13 @@ class Log:
         self.db_cursor.execute("""
             CREATE TABLE IF NOT EXISTS pois (
                 poi_id TEXT PRIMARY KEY,
-                poi_lat REAL,
-                poi_lon REAL,
-                poi_og_lat REAL,
-                poi_og_lon REAL,
+                lat REAL,
+                lon REAL,
+                og_lat REAL,
+                og_lon REAL,
                 fov REAL,
+                place_name TEXT,
+                place_id TEXT,
                 errors TEXT
             )
             """)
@@ -180,6 +183,7 @@ class Log:
                 pic_lat REAL,
                 pic_lon REAL,
                 heading REAL,
+                date TEXT,
                 FOREIGN KEY (poi_id) REFERENCES pois (poi_id)
             )
             """)
@@ -192,8 +196,8 @@ class Log:
         """
         # Insert or ignore POI data (to prevent duplicate inserts)
         self.db_cursor.execute("""
-            INSERT INTO pois (poi_id, poi_lat, poi_lon, poi_og_lat, poi_og_lon, fov, errors)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO pois (poi_id, lat, lon, og_lat, og_lon, fov, place_name, place_id, errors)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(poi_id) DO UPDATE SET
             fov=excluded.fov, errors=excluded.errors
         """, (
@@ -203,20 +207,23 @@ class Log:
             poi.original_coords.lat if poi.original_coords else None,
             poi.original_coords.lon if poi.original_coords else None,
             poi.fov,
+            poi.place_name if poi.place_name else None, 
+            poi.place_id if poi.place_id else None,
             ",".join([repr(error) for error in poi.errors]) if poi.errors else None
         ))
 
         # Insert entries for each of the POI's pics 
         for pic in poi.pics:
             self.db_cursor.execute("""
-                INSERT INTO pictures (poi_id, pic_number, pic_lat, pic_lon, heading)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO pictures (poi_id, pic_number, pic_lat, pic_lon, heading, date)
+                VALUES (?, ?, ?, ?, ?, ?)
             """, (
                 poi.id,
                 pic.pic_number,
                 pic.coords.lat,
                 pic.coords.lon,
-                pic.heading
+                pic.heading,
+                pic.date if pic.date else None
             ))
 
         self.db_connect.commit()
@@ -225,9 +232,9 @@ class Log:
         # Derive log 
         log_path = f"{folder_path}/{name}.json"
 
-        # Query to fetch all POIs with their pictures
+        # Query to fetch all POIs with corresponding Pics
         self.db_cursor.execute("""
-            SELECT pois.*, pictures.pic_number, pictures.pic_lat, pictures.pic_lon, pictures.heading
+            SELECT pois.*, pictures.pic_number, pictures.pic_lat, pictures.pic_lon, pictures.heading, pictures.date
             FROM pois
             LEFT JOIN pictures ON pois.poi_id = pictures.poi_id
         """)
@@ -244,11 +251,13 @@ class Log:
             # Ensure no redundancy, add
             if poi_id not in poi_dict:
                 poi_dict[poi_id] = {
-                    "poi_lat": entry.pop("poi_lat"),
-                    "poi_lon": entry.pop("poi_lon"),
-                    "poi_og_lat": entry.pop("poi_og_lat"),
-                    "poi_og_lon": entry.pop("poi_og_lon"),
+                    "lat": entry.pop("lat"),
+                    "lon": entry.pop("lon"),
+                    "og_lat": entry.pop("og_lat"),
+                    "og_lon": entry.pop("og_lon"),
                     "fov": entry.pop("fov"),
+                    "place_id": entry.pop("place_id"),
+                    "place_name": entry.pop("place_name"),
                     "errors": entry.pop("errors").split(",") if entry.get("errors") else [],
                     "pictures": []
                 }
@@ -259,7 +268,8 @@ class Log:
                     "pic_number": entry.pop("pic_number"),
                     "pic_lat": entry.pop("pic_lat"),
                     "pic_lon": entry.pop("pic_lon"),
-                    "heading": entry.pop("heading")
+                    "heading": entry.pop("heading"),
+                    "date": entry.pop("date")
                 }
                 poi_dict[poi_id]["pictures"].append(pic_entry)
 
