@@ -2,17 +2,18 @@
 For sending requests 
 """
 import requests
-from streetview import _Pic, POI, Coord
+from streetview import Pic, POI, Coord
 from dataclasses import dataclass
 
 class Requests:
     def __init__(self, key: str, pic_dims, debug = False):
         self.key = key
-        self.pic_len = pic_dims[0]
-        self.pic_height = pic_dims[1]
         self.debug = debug
+        if pic_dims:
+            self.pic_len = pic_dims[0]
+            self.pic_height = pic_dims[1]
 
-    def pull_image(self, pic: _Pic, poi: POI):
+    def pull_image(self, pic: Pic, poi: POI):
         # Parameters for API request
         pic_params = {
             'key': self.key,
@@ -81,7 +82,7 @@ class Requests:
             poi.errors.append(Error("pulling nearby search results", f"no nearby {poi.keyword} found"))
             if self.debug: print(f"No nearby {poi.keyword} found for {poi.coords}")
 
-    def pull_pano_info(self, pic: _Pic, poi: POI):
+    def pull_pano_info(self, pic: Pic, poi: POI):
         """
         Extract coordiantes from a pano's metadata, used to determine heading
         """
