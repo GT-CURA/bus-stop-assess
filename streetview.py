@@ -105,13 +105,14 @@ class Session:
             
             # Capture each pic
             for pic in poi.pics: 
-                self._capture_pic(pic)
+                self._capture_pic(poi, pic)
 
         # Otherwise, build a new pic object and capture it 
         else: 
-            # Build pic 
+            # Build pic, add to POI
             pic = Pic(heading=heading, stitch_clock=stitch[0], stitch_counter=stitch[1], coords=poi.coords)
-            
+            poi.pics.append(pic)
+
             # Estimate heading if none is provided 
             if heading == None:
                 self.requests.pull_pano_info(pic)
@@ -152,9 +153,8 @@ class Session:
         # Base pic name on POI ID and its number 
         image_path = f"{self.folder_path}/{poi.id}_{pic.pic_number}.jpg"
 
-        # Save the image, add the Pic object to the POI
+        # Save the image
         final_img.save(image_path)
-        poi.pics.append(pic)
 
     def _estimate_heading(self, pic: Pic, poi: POI):
         """
@@ -218,7 +218,8 @@ class Session:
             name: What the log file will be titled
             delete_db: Whether or not to delete the SQLite3 database file bc I couldn't decide if that was a good idea or not
         """
+        # Tell Log class to dump contens
         self.log.write_log(self.folder_path, name, delete_db)
         
         # Let 'em know 
-        if self.debug: print(f"Log written to {self.folder_path}/{name}")
+        if self.debug: print(f"[LOG] Log written to {self.folder_path}/{name}")

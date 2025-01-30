@@ -32,7 +32,7 @@ class Requests:
         # Pull response 
         response = self._pull_response(
             params = pic_params,
-            context = "pulling image",
+            context = "Pulling image",
             coords = repr(pic.coords),
             base = 'https://maps.googleapis.com/maps/api/streetview?')
         
@@ -61,7 +61,7 @@ class Requests:
         response = self._pull_response(
             params = params,
             base = 'https://maps.googleapis.com/maps/api/place/nearbysearch/json',
-            context = "pulling nearby search results",
+            context = "Pulling nearby search results",
             coords=poi.coords)
         
         # Handle errors
@@ -80,7 +80,7 @@ class Requests:
         # Handle no results 
         else: 
             poi.errors.append(Error("pulling nearby search results", f"no nearby {poi.keyword} found"))
-            if self.debug: print(f"No nearby {poi.keyword} found for {poi.coords}")
+            if self.debug: print(f"[ERROR] No nearby {poi.keyword} found for {poi.coords}")
 
     def pull_pano_info(self, pic: Pic, poi: POI):
         """
@@ -97,7 +97,7 @@ class Requests:
         response = self._pull_response(
             params=params,
             coords=repr(pic.coords),
-            context="pulling metadata",
+            context="Pulling metadata",
             base='https://maps.googleapis.com/maps/api/streetview/metadata?')
         
         # Handle errors
@@ -113,7 +113,7 @@ class Requests:
 
     def _pull_response(self, params, context, base, coords):
         # Print a sumamry of the request if debugging 
-        if self.debug: print(f"{context} for {coords}")
+        if self.debug: print(f"[REQUEST] {context} for {coords}")
 
         # Issue request
         try:
@@ -121,7 +121,7 @@ class Requests:
         
         # Catch any exceptions that are raised, return Error
         except requests.exceptions.RequestException as e:
-            if self.debug: print(f"Error when {context}: {e}")
+            if self.debug: print(f"[ERROR] Got {e} when {context}!")
             return Error(context, repr(e))
 
         # Check the request's status code 
