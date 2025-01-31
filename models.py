@@ -6,7 +6,7 @@ import json
 
 class BusStopAssess:
     """
-    Wrapper for ultralytics' yolo module. 
+    Various tools for running the project model.
     """
     def __init__(self, model_path = "models/best.pt"):
         # Set up model
@@ -31,7 +31,7 @@ class BusStopAssess:
             name = result.path.rsplit('/')[-1]
 
             # Make sure the folder exists bc I keep forgetting to 
-            if not os.path.exists(output_folder): os.makedirs(output_folder)
+            self.make_folder(output_folder)
 
             # Save output image
             result.save(filename=f"{output_folder}/{name}")
@@ -64,18 +64,27 @@ class BusStopAssess:
 
                 # Get class and corresponding conf score for each box detected
                 pic_results[pic['pic_number']] = [(int(box.cls), float(box.conf)) for box in output.boxes]
-
+                
                 # Save images if requested
+                self.make_folder(output_folder)
                 output.save(filename=f"{output_folder}/{poi_id}_{pic['pic_number']}.jpg")
+
             # Add results to this poi's dict entry
             results[poi_id] = pic_results
         return results
-
+    
+    def make_folder(self, path):
+        if not os.path.exists(path): 
+            os.makedirs(path)
+            
 class BusStopCV:
     """
     Runs the University of Washington Makeability Lab's BusStopCV model.
+    Didn't generalize well (failed to detect MARTA bus stops)
     https://makeabilitylab.cs.washington.edu/project/busstopcv/
     """
+    import onnxruntime as ort
+
     # Constants
     input_shape = [1, 3, 640, 640]
     topk = 100
@@ -85,8 +94,8 @@ class BusStopCV:
 
     def __init__(self):
         # Set up models
-        self.model = ort.InferenceSession("models/attempt-2.onnx")
-        self.nms = ort.InferenceSession("models/nms-yolov8.onnx")
+        self.model = self.ort.InferenceSession("models/attempt-2.onnx")
+        self.nms = self.ort.InferenceSession("models/nms-yolov8.onnx")
 
     def infer(self, image_path: str):
         # Read image, store dimensions

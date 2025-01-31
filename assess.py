@@ -36,6 +36,8 @@ def pull_imgs():
 # Go through the folder and 
 def assess():
     model = BusStopAssess()
-    output = model.infer_log("pics/atl_study_area/first_26", output_folder="pics/atl_study_area/first_output")
+    results = model.infer_log("pics/atl_study_area/first_26", output_folder="pics/atl_study_area/first_output")
+
+    
     print("pause")
 assess()
