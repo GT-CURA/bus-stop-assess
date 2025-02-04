@@ -2,7 +2,6 @@ import cv2
 import numpy as np
 import ultralytics as ua
 import os
-import json
 
 class BusStopAssess:
     """
@@ -55,7 +54,7 @@ class BusStopAssess:
             predictions[int(box.cls)] += float(box.conf)
         return predictions
 
-    def infer_log(self, log, input_folder:str, output_folder:str=None, min_conf=.6,):
+    def infer_log(self, stops, input_folder:str, output_folder:str=None, min_conf=.6,):
         """
         When supplied with the log from a streetview capture session, will return
         the classes with confidence scores for each bus stop. Images must be in same folder as log!
@@ -64,10 +63,6 @@ class BusStopAssess:
             min_conf: Minimum confidence score required to be part of results.
             output_folder: If you want the outputted images to be saved, specify a path here. 
         """
-        # Open log
-        with open(f"{input_folder}/log.json") as f:
-            stops = json.load(f)
-        
         # It's faster to input all images at once. Get paths in disgusting embedded loop
         img_paths = []
         for id in stops:
@@ -80,8 +75,7 @@ class BusStopAssess:
 
         preds = {}
         # Iterate through output, saving predictions
-        for i in range(len(output)):
-            result = output[i]
+        for result in output:
             # Create numpy array representing predictions for this image
             img_preds = np.zeros((self.num_classes, len(result.boxes)))
 
@@ -96,8 +90,12 @@ class BusStopAssess:
                 self.make_folder(output_folder)
                 output.save(filename=result.path.replace(input_folder, output_folder))
             
-            # Save prediction array
-            preds[i] = img_preds
+            # Stack prediction array onto existing one. Also stupid.
+            poi = result.path.split("/")[-1].split("_")[0]
+            if poi not in preds:
+                preds[poi] = img_preds
+            else:
+                preds[poi] = np.hstack((preds[poi], img_preds))
 
         return preds
 

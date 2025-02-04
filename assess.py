@@ -3,6 +3,7 @@ import multipoint
 import geojson
 from models import BusStopAssess
 import json
+import numpy as np
 
 """
 The pipeline for automatically assessing bus stop completeness  
@@ -42,8 +43,13 @@ def assess(input_folder:str, output_folder:str = None, min_conf=.6):
     with open(f"{input_folder}/log.json") as f:
             stops = json.load(f)
     
-    # I think it's faster to input all images at once
+    # Run the model on the entire folder
     results = model.infer_log(stops, input_folder, output_folder, min_conf)
+
+    # Iterate through each POI, scoring likelihood of category being present
+    scores = {}
+    for id, result in results.items():
+         nonzero_mask = result > 0
 
     print("pause")
 assess("/home/dev/src/bus-stop-assess/pics/atl_study_area/first_26")
