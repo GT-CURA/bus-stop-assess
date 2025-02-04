@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import ultralytics as ua
 import os
+from collections import defaultdict
 
 class BusStopAssess:
     """
@@ -10,7 +11,8 @@ class BusStopAssess:
     def __init__(self, model_path = "models/best.pt"):
         # Set up model
         self.model = ua.YOLO(model_path)
-        self.num_classes = 6
+        self.classes = self.model.names
+        self.num_classes = len(self.model.names)
     
     def infer(self, image_paths=None, input_folder=None, output_folder="output"):
         """Runs the model with inputted images. Specify a folder path to infer every image in the folder."""
@@ -76,26 +78,36 @@ class BusStopAssess:
         preds = {}
         # Iterate through output, saving predictions
         for result in output:
-            # Create numpy array representing predictions for this image
-            img_preds = np.zeros((self.num_classes, len(result.boxes)))
+            # Create list for each class
+            img_preds = defaultdict(list)
 
-            # I can't think of a less stupid way to do this
+            # Iterate through boxes, getting classes and confidence levels
             for box in result.boxes:
-                cls = int(box.cls)
-                index = np.count_nonzero(img_preds[cls])
-                img_preds[cls][index] = float(box.conf)
+                img_preds[self.classes[int(box.cls)]].append(float(box.conf))
+
+            # Conver to numpy arrays >:(
+            for i in range(self.num_classes):
+                cls = self.classes[i]
+                if cls in img_preds:
+                    img_preds[cls] = np.array(img_preds[cls])
+
+                # For classes with no predictions, put in empty array
+                else:
+                    img_preds[cls] = np.empty((0))
 
             # Save image if requested 
             if output_folder:
                 self.make_folder(output_folder)
                 output.save(filename=result.path.replace(input_folder, output_folder))
             
-            # Stack prediction array onto existing one. Also stupid.
+            # Can't think of a less stupid way to get POI numbers
             poi = result.path.split("/")[-1].split("_")[0]
+            
+            # Save this image's results in dict with key = its POI 
             if poi not in preds:
-                preds[poi] = img_preds
+                preds[poi] = [img_preds]
             else:
-                preds[poi] = np.hstack((preds[poi], img_preds))
+                preds[poi].append(img_preds)
 
         return preds
 
