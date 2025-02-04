@@ -2,6 +2,7 @@ from streetview import POI, Session
 import multipoint
 import geojson
 from models import BusStopAssess
+import json
 
 """
 The pipeline for automatically assessing bus stop completeness  
@@ -34,10 +35,15 @@ def pull_imgs():
         sesh.write_log()
 
 # Go through the folder and 
-def assess():
+def assess(input_folder:str, output_folder:str = None, min_conf=.6):
     model = BusStopAssess()
-    results = model.infer_log("pics/atl_study_area/first_26", output_folder="pics/atl_study_area/first_output")
-
     
+    # Open folder with log
+    with open(f"{input_folder}/log.json") as f:
+            stops = json.load(f)
+    
+    # I think it's faster to input all images at once
+    results = model.infer_log(stops, input_folder, output_folder, min_conf)
+
     print("pause")
-assess()
+assess("/home/dev/src/bus-stop-assess/pics/atl_study_area/first_26")

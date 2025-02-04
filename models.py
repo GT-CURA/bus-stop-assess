@@ -11,6 +11,7 @@ class BusStopAssess:
     def __init__(self, model_path = "models/best.pt"):
         # Set up model
         self.model = ua.YOLO(model_path)
+        self.num_classes = 6
     
     def infer(self, image_paths=None, input_folder=None, output_folder="output"):
         """Runs the model with inputted images. Specify a folder path to infer every image in the folder."""
@@ -36,7 +37,25 @@ class BusStopAssess:
             # Save output image
             result.save(filename=f"{output_folder}/{name}")
     
-    def infer_log(self, input_folder:str, min_conf=.6, output_folder:str=None):
+    def infer_img(self, pic_num:int, poi_id:int, input_folder:str, min_conf=.6, output_folder:str=None):
+        # Build path
+        img_path = f"{input_folder}/{poi_id}_{pic_num}.jpg"
+
+        # Determine path of this image and plug it into model
+        output = self.model(img_path, conf=min_conf)[0]
+
+        # Save outputted image if requested
+        if output_folder:
+            self.make_folder(output_folder)
+            output.save(filename=f"{output_folder}/{poi_id}_{pic_num}.jpg")
+        
+        # Return a list of predictions
+        predictions = np.zeros(6)
+        for box in output.boxes:
+            predictions[int(box.cls)] += float(box.conf)
+        return predictions
+
+    def infer_log(self, log, input_folder:str, output_folder:str=None, min_conf=.6,):
         """
         When supplied with the log from a streetview capture session, will return
         the classes with confidence scores for each bus stop. Images must be in same folder as log!
@@ -49,29 +68,39 @@ class BusStopAssess:
         with open(f"{input_folder}/log.json") as f:
             stops = json.load(f)
         
-        # Iterate through each POI
-        results = {}
-        for poi_id in stops:
-            # Get the actual stop
-            stop = stops[poi_id]
-            
-            # Iterate through pics, getting outputs
-            pic_results = {}
+        # It's faster to input all images at once. Get paths in disgusting embedded loop
+        img_paths = []
+        for id in stops:
+            stop = stops[id]
             for pic in stop['pictures']:
-                # Determine path of this image and plug it into model
-                img_path = f"{input_folder}/{poi_id}_{pic['pic_number']}.jpg"
-                output = self.model(img_path, conf=min_conf)[0]
+                img_paths.append(f"{input_folder}/{id}_{pic['pic_number']}.jpg")
 
-                # Get class and corresponding conf score for each box detected
-                pic_results[pic['pic_number']] = [(int(box.cls), float(box.conf)) for box in output.boxes]
-                
-                # Save images if requested
+        # Run model on paths 
+        output = self.model(img_paths, conf=min_conf)
+
+        preds = {}
+        # Iterate through output, saving predictions
+        for i in range(len(output)):
+            result = output[i]
+            # Create numpy array representing predictions for this image
+            img_preds = np.zeros((self.num_classes, len(result.boxes)))
+
+            # I can't think of a less stupid way to do this
+            for box in result.boxes:
+                cls = int(box.cls)
+                index = np.count_nonzero(img_preds[cls])
+                img_preds[cls][index] = float(box.conf)
+
+            # Save image if requested 
+            if output_folder:
                 self.make_folder(output_folder)
-                output.save(filename=f"{output_folder}/{poi_id}_{pic['pic_number']}.jpg")
+                output.save(filename=result.path.replace(input_folder, output_folder))
+            
+            # Save prediction array
+            preds[i] = img_preds
 
-            # Add results to this poi's dict entry
-            results[poi_id] = pic_results
-        return results
+        return preds
+
     
     def make_folder(self, path):
         if not os.path.exists(path): 
@@ -83,7 +112,7 @@ class BusStopCV:
     Didn't generalize well (failed to detect MARTA bus stops)
     https://makeabilitylab.cs.washington.edu/project/busstopcv/
     """
-    import onnxruntime as ort
+    # import onnxruntime as ort
 
     # Constants
     input_shape = [1, 3, 640, 640]
