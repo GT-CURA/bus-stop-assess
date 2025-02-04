@@ -30,6 +30,7 @@ def _get_road(poi: POI, original_pt):
     elif type(nearest_rd.get("tiger:name_base")) == str: 
         nearest_rd_all = road_lines[road_lines["tiger:name_base"] == nearest_rd.get("tiger:name_base")]
     else:
+        # If we can't find a road, just use the POI's coords to build a single Pic
         poi.errors.append(Error("attempting to run multipoint", "couldnt find adjacent road"))
         return None
 
@@ -97,6 +98,10 @@ def get_points(poi: POI, num_points=(0,0), interval=15):
 
     # Find the road that this POI sits on
     nearest_road = _get_road(poi, original_pt)
+
+    # If we can't find a road, just return the POI with one Pic
+    # if nearest_road is None:
+    #     pic = Pic(1, )
 
     # Define interval and generate points along the nearest road
     points = _generate_points(nearest_road, interval, original_pt, num_points)
@@ -174,6 +179,14 @@ class Autoincrement:
 
         # Find the road that this POI sits on
         nearest_rd = _get_road(poi, main_pt)
+        
+        # If we can't find nearest road, just use POI's coords to build a pic
+        if nearest_rd is None: 
+            pic = Pic(1, coords=poi.coords)
+            self.requests.pull_pano_info(pic, poi)
+            self.Misc.estimate_heading(pic, poi)
+            poi.pics.append(pic)
+            return poi 
         
         # Project main point onto the road
         main_pt = main_pt.to_crs("EPSG:3857")

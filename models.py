@@ -85,15 +85,8 @@ class BusStopAssess:
             for box in result.boxes:
                 img_preds[self.classes[int(box.cls)]].append(float(box.conf))
 
-            # Conver to numpy arrays >:(
-            for i in range(self.num_classes):
-                cls = self.classes[i]
-                if cls in img_preds:
-                    img_preds[cls] = np.array(img_preds[cls])
-
-                # For classes with no predictions, put in empty array
-                else:
-                    img_preds[cls] = np.empty((0))
+            # Convert to numpy arrays >:(
+            converted = {cls: np.array(img_preds[cls]) for cls in img_preds}
 
             # Save image if requested 
             if output_folder:
@@ -105,9 +98,9 @@ class BusStopAssess:
             
             # Save this image's results in dict with key = its POI 
             if poi not in preds:
-                preds[poi] = [img_preds]
+                preds[poi] = [converted]
             else:
-                preds[poi].append(img_preds)
+                preds[poi].append(converted)
 
         return preds
 

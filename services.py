@@ -4,6 +4,7 @@ For sending requests
 import requests
 from streetview import Pic, POI, Coord
 from dataclasses import dataclass
+import math 
 
 class Requests:
     def __init__(self, key: str, pic_dims, debug = False):
@@ -287,24 +288,21 @@ class Log:
             self.remove(self.db_path)
 
 class Misc:
-    import numpy as np
-    import math
-
-    def estimate_heading(self, pic: Pic, poi: POI):
+    def estimate_heading(pic: Pic, poi: POI):
         """
         Use pano's coords to determine the necessary camera heading.
         """
         # Convert latitude to radians, get distance between pic & POI lons in radians.  
-        diff_lon = self.math.radians(poi.coords.lon - pic.coords.lon)
-        old_lat = self.math.radians(pic.coords.lat)
-        new_lat = self.math.radians(poi.coords.lat)
+        diff_lon = math.radians(poi.coords.lon - pic.coords.lon)
+        old_lat = math.radians(pic.coords.lat)
+        new_lat = math.radians(poi.coords.lat)
 
         # Determine degree bearing
-        x = self.math.sin(diff_lon) * self.math.cos(new_lat)
-        y = self.math.cos(old_lat) * self.math.sin(new_lat) - self.math.sin(old_lat) * self.math.cos(new_lat) * self.math.cos(diff_lon)
-        heading = self.math.atan2(x, y)
+        x = math.sin(diff_lon) * math.cos(new_lat)
+        y = math.cos(old_lat) * math.sin(new_lat) - math.sin(old_lat) * math.cos(new_lat) * math.cos(diff_lon)
+        heading = math.atan2(x, y)
         
         # Convert from radians to degrees, normalize
-        heading = self.math.degrees(heading)
+        heading = math.degrees(heading)
         heading = (heading + 360) % 360
         pic.heading = heading
