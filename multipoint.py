@@ -195,7 +195,7 @@ class Autoincrement:
 
         # Add main point to the list of panos so that future points don't override it 
         pano_ids = []
-        self._check_redundancy(start_distance, 0, pano_ids, nearest_rd, poi)
+        self._check_redundancy(start_distance, add_interval, pano_ids, nearest_rd, poi)
 
         # Iterate through the points we need to add
         for i in range(-num_points[0], num_points[1] + 1):

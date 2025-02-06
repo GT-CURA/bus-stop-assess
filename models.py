@@ -11,8 +11,8 @@ class BusStopAssess:
     def __init__(self, model_path = "models/best.pt"):
         # Set up model
         self.model = ua.YOLO(model_path)
-        self.classes = self.model.names
-        self.num_classes = len(self.model.names)
+        self.labels = self.model.names
+        self.num_labels = len(self.model.names)
     
     def infer(self, image_paths=None, input_folder=None, output_folder="output"):
         """Runs the model with inputted images. Specify a folder path to infer every image in the folder."""
@@ -74,8 +74,8 @@ class BusStopAssess:
 
         # Run model on paths 
         output = self.model(img_paths, conf=min_conf)
-
         preds = {}
+
         # Iterate through output, saving predictions
         for result in output:
             # Create list for each class
@@ -83,25 +83,29 @@ class BusStopAssess:
 
             # Iterate through boxes, getting classes and confidence levels
             for box in result.boxes:
-                img_preds[self.classes[int(box.cls)]].append(float(box.conf))
-
-            # Convert to numpy arrays >:(
-            converted = {cls: np.array(img_preds[cls]) for cls in img_preds}
+                img_preds[self.labels[int(box.cls)]].append(float(box.conf))
 
             # Save image if requested 
             if output_folder:
                 self.make_folder(output_folder)
-                output.save(filename=result.path.replace(input_folder, output_folder))
+                result.save(filename=result.path.replace(input_folder, output_folder))
             
             # Can't think of a less stupid way to get POI numbers
             poi = result.path.split("/")[-1].split("_")[0]
             
-            # Save this image's results in dict with key = its POI 
+            # See if this POI is in the dict
             if poi not in preds:
-                preds[poi] = [converted]
-            else:
-                preds[poi].append(converted)
+                preds[poi] = defaultdict(list)
 
+            for label in img_preds:
+                # Convert to Numpy array
+                label_confs = np.array(img_preds[label])
+
+                # See if this label has been added to the POI before
+                if label not in preds[poi]:
+                    preds[poi][label] = [label_confs]
+                else: 
+                    preds[poi][label].append(label_confs)
         return preds
 
     
