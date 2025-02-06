@@ -225,9 +225,9 @@ class Log:
             """, (
                 poi.id,
                 pic.pic_number,
-                pic.coords.lat,
-                pic.coords.lon,
-                pic.heading,
+                pic.coords.lat if pic.coords else None, 
+                pic.coords.lon if pic.coords else None,
+                pic.heading if pic.coords else None,
                 pic.date if pic.date else None
             ))
 
@@ -267,7 +267,7 @@ class Log:
                     "pictures": []
                 }
 
-            # If there's an associated picture, add it
+            # Add POI's pics
             if entry["pic_number"] is not None:
                 pic_entry = {
                     "pic_number": entry.pop("pic_number"),

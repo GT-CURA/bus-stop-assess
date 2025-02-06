@@ -1,4 +1,5 @@
-from streetview import POI, Session
+from streetview import POI, Session, Pic
+from services import Error
 import multipoint
 import geojson
 from models import BusStopAssess
@@ -62,10 +63,13 @@ def assess(input_folder:str, output_folder:str = None, min_conf=.4):
               if label in poi_output:
                    # See how many pics this label was found in. Finding it in multiple pics gives big % boost 
                    num_pics = len(poi_output[label])
+
                    # Find the highest conf for each pic, sum them 
                    label_sum = np.sum([np.max(confs) for confs in poi_output[label]])
+
                    # Total score is the sum of predictions over number of pics, times log function of # pic occurences
                    total_score = (1 - np.exp(-num_pics)) * (label_sum / num_pics)
+
                    # Add to this label in the dict
                    poi_scores[label] = total_score
 
@@ -81,7 +85,44 @@ def assess(input_folder:str, output_folder:str = None, min_conf=.4):
         json.dump(scores, outfile)
     return scores
 
+def oh_no():
+    with open("pics/atl_study_area/test/edit_me.json") as f:
+        stops = json.load(f)
+
+    for id in stops:
+        stop = stops[id]
+        stop["fov"] = 45
+        stop["errors"][0] = "Log failed to save while capturing images."
+
+    with open("pics/atl_study_area/test/edited.json", "w") as outfile: 
+        json.dump(stops, outfile)
+
+def get_coords():
+    sesh = Session(folder_path="pics/atl_study_area/test", debug=True)
+
+    with open("data/atl/All_Stops_In_Bounds.json") as f:
+        stops = geojson.load(f)['features']
+
+    for i in range(347,501):
+        # Build POI, get new coords
+        stop = stops.__getitem__(i)
+        coords = stop["geometry"]["coordinates"]
+        stop_id = stop["properties"]["MARTA_Inventory_Within.Stop_ID"]
+        poi = POI(id=stop_id, lat=coords[1], lon=coords[0])
+        poi.errors.append(Error("while pulling images", "log didn't save."))
+        sesh.improve_coords(poi)
+
+        # Add PICs
+        for i in range(3):
+            pic = Pic(i+1)
+            poi.pics.append(pic)
+
+        # Write fucking entry
+        sesh.log.commit_entry(poi)
+
+    sesh.write_log()
+
 # Run stuff
-pull_imgs()
-scores = assess("pics/atl_study_area/first_26", "pics/atl_study_area/output")
+# pull_imgs()
+scores = assess("pics/atl_study_area/200_to_500")
 print("test")

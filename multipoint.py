@@ -209,7 +209,9 @@ class Autoincrement:
             # Keep incrementing distance by inputted interval until we get a new pano
             add_dist = 0
             while self._check_redundancy(min_dist, add_dist, pano_ids, nearest_rd, poi) == False:
-                add_dist += add_interval
+                
+                # Make sure sign is negative when decreasing 
+                add_dist += math.copysign(add_interval, i) 
         
         # Return the POI now that it has its pics 
         return poi

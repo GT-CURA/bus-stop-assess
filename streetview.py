@@ -187,7 +187,11 @@ class Session:
         nearest = self.requests.pull_closest(poi) 
         
         # Get the location from the results
-        location = nearest['geometry']['location']
+        if nearest:
+            location = nearest['geometry']['location']
+        else:
+            if self.debug: print(f"[ERROR] Failed to improve coords for {poi.id}.")
+            return 
 
         # Update the POI's coords
         poi.original_coords = poi.coords
