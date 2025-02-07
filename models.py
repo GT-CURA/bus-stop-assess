@@ -8,11 +8,13 @@ class BusStopAssess:
     """
     Various tools for running the project model.
     """
-    def __init__(self, model_path = "models/best.pt"):
+    def __init__(self, input_path:str, output_path:str = None, model_path = "models/best.pt"):
         # Set up model
         self.model = ua.YOLO(model_path)
         self.labels = self.model.names
         self.num_labels = len(self.model.names)
+        self.output_path = output_path
+        self.input_path = input_path
     
     def infer(self, image_paths=None, input_folder=None, output_folder="output"):
         """Runs the model with inputted images. Specify a folder path to infer every image in the folder."""
@@ -37,26 +39,8 @@ class BusStopAssess:
 
             # Save output image
             result.save(filename=f"{output_folder}/{name}")
-    
-    def infer_img(self, pic_num:int, poi_id:int, input_folder:str, min_conf=.6, output_folder:str=None):
-        # Build path
-        img_path = f"{input_folder}/{poi_id}_{pic_num}.jpg"
 
-        # Determine path of this image and plug it into model
-        output = self.model(img_path, conf=min_conf)[0]
-
-        # Save outputted image if requested
-        if output_folder:
-            self.make_folder(output_folder)
-            output.save(filename=f"{output_folder}/{poi_id}_{pic_num}.jpg")
-        
-        # Return a list of predictions
-        predictions = np.zeros(6)
-        for box in output.boxes:
-            predictions[int(box.cls)] += float(box.conf)
-        return predictions
-
-    def infer_log(self, stops, input_folder:str, output_folder:str=None, min_conf=.6,):
+    def infer_log(self, stops, batch_infer=False, min_conf=.6,):
         """
         When supplied with the log from a streetview capture session, will return
         the classes with confidence scores for each bus stop. Images must be in same folder as log!
@@ -65,50 +49,68 @@ class BusStopAssess:
             min_conf: Minimum confidence score required to be part of results.
             output_folder: If you want the outputted images to be saved, specify a path here. 
         """
-        # It's faster to input all images at once. Get paths in disgusting embedded loop
-        img_paths = []
-        for id in stops:
-            stop = stops[id]
-            for pic in stop['pictures']:
-                img_paths.append(f"{input_folder}/{id}_{pic['pic_number']}.jpg")
+        # It's faster to input all images at once but sometimes it doesn't work idk
+        if batch_infer:
 
-        # Run model on paths 
-        output = self.model(img_paths, conf=min_conf)
+            # Get img paths in disgusting embedded loop
+            img_paths = []
+            for stop_id in stops:
+                stop = stops[stop_id]
+                for pic in stop['pictures']:
+                    img_paths.append(f"{self.input_path}/{stop_id}_{pic['pic_number']}.jpg")
+
+            # Run model on paths 
+            output = self.model(img_paths, conf=min_conf)
+
+        # Run imgs one at a time through model
+        else:
+            # Go through each stop 
+            output = []
+            for stop_id in stops:
+                stop = stops[stop_id]
+
+                # Go through each of this stop's images, running through model
+                for img_output in stop['pictures']:
+                    img_path = f"{self.input_path}/{stop_id}_{img_output['pic_number']}.jpg"
+                    output.append(self.model(img_path, conf=min_conf)[0])
+        
+        # Iterate through image output, scoring each POI's labels 
         preds = {}
+        for img_output in output:
+            self.score_result(img_output, preds)
 
-        # Iterate through output, saving predictions
-        for result in output:
-            # Create list for each class
-            img_preds = defaultdict(list)
-
-            # Iterate through boxes, getting classes and confidence levels
-            for box in result.boxes:
-                img_preds[self.labels[int(box.cls)]].append(float(box.conf))
-
-            # Save image if requested 
-            if output_folder:
-                self.make_folder(output_folder)
-                result.save(filename=result.path.replace(input_folder, output_folder))
-            
-            # Can't think of a less stupid way to get POI numbers
-            poi = result.path.split("/")[-1].split("_")[0]
-            
-            # See if this POI is in the dict
-            if poi not in preds:
-                preds[poi] = defaultdict(list)
-
-            for label in img_preds:
-                # Convert to Numpy array
-                label_confs = np.array(img_preds[label])
-
-                # See if this label has been added to the POI before
-                if label not in preds[poi]:
-                    preds[poi][label] = [label_confs]
-                else: 
-                    preds[poi][label].append(label_confs)
         return preds
 
-    
+    def score_result(self, img_output, preds):
+        img_preds = defaultdict(list)
+
+        # Iterate through boxes, getting classes and confidence levels
+        for box in img_output.boxes:
+            img_preds[self.labels[int(box.cls)]].append(float(box.conf))
+
+        # Save image if requested 
+        if self.output_path:
+            self.make_folder(self.output_path)
+            img_output.save(filename=img_output.path.replace(self.input_path, self.output_path))
+        
+        # Can't think of a less stupid way to get POI numbers
+        poi = img_output.path.split("/")[-1].split("_")[0]
+        
+        # See if this POI is in the dict
+        if poi not in preds:
+            preds[poi] = defaultdict(list)
+
+        # Go through each label in the predictions 
+        for label in img_preds:
+            # Convert to Numpy array
+            label_confs = np.array(img_preds[label])
+
+            # See if this label has been added to the POI before
+            if label not in preds[poi]:
+                preds[poi][label] = [label_confs]
+            else: 
+                preds[poi][label].append(label_confs)
+
     def make_folder(self, path):
         if not os.path.exists(path): 
             os.makedirs(path)

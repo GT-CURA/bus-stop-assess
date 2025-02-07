@@ -39,14 +39,14 @@ def pull_imgs():
 
 def assess(input_folder:str, output_folder:str = None, min_conf=.4):
     # Set up YOLO model and get its classes 
-    model = BusStopAssess()
+    model = BusStopAssess(input_folder, output_folder)
 
     # Open folder with log
     with open(f"{input_folder}/log.json") as f:
             stops = json.load(f)
 
     # Run the model on the entire folder
-    output = model.infer_log(stops, input_folder, output_folder, min_conf)
+    output = model.infer_log(stops, False, min_conf)
 
     # Iterate through each POI, scoring likelihood of category being present
     scores = {}
@@ -84,18 +84,6 @@ def assess(input_folder:str, output_folder:str = None, min_conf=.4):
     with open(save_path, "w") as outfile: 
         json.dump(scores, outfile)
     return scores
-
-def oh_no():
-    with open("pics/atl_study_area/test/edit_me.json") as f:
-        stops = json.load(f)
-
-    for id in stops:
-        stop = stops[id]
-        stop["fov"] = 45
-        stop["errors"][0] = "Log failed to save while capturing images."
-
-    with open("pics/atl_study_area/test/edited.json", "w") as outfile: 
-        json.dump(stops, outfile)
 
 def get_coords():
     sesh = Session(folder_path="pics/atl_study_area/test", debug=True)
