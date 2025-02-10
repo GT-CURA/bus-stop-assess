@@ -1,11 +1,11 @@
-from streetview import POI, Session, Pic
-from services import Error
+from streetview import POI, Session
 import multipoint
 import geojson
 from models import BusStopAssess
 import json
 import numpy as np
 from collections import defaultdict
+import os 
 
 """
 The pipeline for automatically assessing bus stop completeness  
@@ -37,7 +37,7 @@ def pull_imgs():
 
     sesh.write_log()
 
-def _assess(stops, model, input_folder:str, output_folder:str = None, min_conf=.4):
+def _assess(stops, model, min_conf=.4):
     # Run the model on the entire folder
     output = model.infer_log(stops, False, min_conf)
 
@@ -66,24 +66,19 @@ def _assess(stops, model, input_folder:str, output_folder:str = None, min_conf=.
                    # Add to this label in the dict
                    poi_scores[label] = total_score
 
-         # Add some of the POI's info from the log to its score dict
-         poi_scores["latitude_og"] = stops["og_lat"]
-         poi_scores["longitude_og"] = stops["og_lon"]
-         poi_scores["latitude"] = stops["lat"]
-         poi_scores["longitude"] = stops["lon"]
-         poi_scores["gmaps_place_name"] = stops["place_name"]
+         # Add some of the POI's info from the log 
+         poi_dict = {
+              'latitude': stops[id]["lat"],
+              'longitude': stops[id]["lon"],
+              'latitude_og': stops[id]["og_lat"],
+              'longitude_og': stops[id]["og_lon"],
+              'gmaps_place_name': stops[id]["place_name"],
+              'amenity_scores': poi_scores 
+         }
 
          # Add POI's results to dict
-         scores[id] = poi_scores
+         scores[id] = poi_dict
 
-    # Set save path to output folder if provided 
-    save_path = f"{input_folder}/scores.json"
-    if output_folder:
-        save_path = f"{output_folder}/scores.json"
-
-    # Save to JSON 
-    with open(save_path, "w") as outfile: 
-        json.dump(scores, outfile, indent=2)
     return scores
 
 def make_chunks(stops, chunk_size):
@@ -93,20 +88,52 @@ def make_chunks(stops, chunk_size):
 
 def assess(input_folder:str, output_folder:str = None, min_conf=.4, chunk_size=0):
     # Open the log 
-    with open(f"{input_folder}/log.json") as f:
+    log_path = os.path.join(input_folder, "log.json")
+    with open(log_path) as f:
             stops = json.load(f)
 
     # Set up YOLO model 
     model = BusStopAssess(input_folder, output_folder)
+    
+    # Set save path to output folder if provided 
+    save_path = input_folder
+    if output_folder:
+        save_path = output_folder
 
     # Only run the model on a finite number of stops bc WSL keeps crashing :(
-    
+    if not chunk_size: 
+         chunk_size = len(stops)
+    chunks = make_chunks(stops, chunk_size)
 
-    
+    # Run model on each chunk
+    temp_files = []
+    for i, chunk in enumerate(chunks): 
          
+         # Plug this chunk into the model
+         chunk_scores = _assess(chunk, model, min_conf)
          
+         # Save results to a temp JSON file
+         chunk_path = os.path.join(save_path, f"temp_{i}.json")
+         temp_files.append(chunk_path)
+         with open(chunk_path, "w") as f: 
+              json.dump(chunk_scores, f, indent=2)
 
-# Run stuff
-# pull_imgs()
-scores = _assess("/home/dev/src/bus-stop-assess/pics/atl_study_area/all")
+    # Merge all temp JSON files into one final JSON
+    final_scores = {}
+    for file in temp_files:
+        with open(file, "r") as f:
+            chunk_data = json.load(f)
+            final_scores.update(chunk_data)
+
+    # Save the final combined results
+    final_path = os.path.join(save_path, "scores.json")
+    with open(final_path, "w") as f:
+        json.dump(final_scores, f, indent=2)
+
+    # Delete temp JSON files
+    for file in temp_files:
+        os.remove(file)
+
+
+scores = assess("/home/dev/src/bus-stop-assess/pics/atl_study_area/all", chunk_size=100)
 print("Done.")

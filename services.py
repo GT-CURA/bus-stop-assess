@@ -5,6 +5,7 @@ import requests
 from streetview import Pic, POI, Coord
 from dataclasses import dataclass
 import math 
+from os import path
 
 class Requests:
     def __init__(self, key: str, pic_dims, debug = False):
@@ -160,7 +161,7 @@ class Log:
 
     def __init__(self, folder_path:str):
         # Create or connect database 
-        self.db_path = f"{folder_path}/log.db"
+        self.db_path = path.join(folder_path, "log.db")
         self.db_connect = self.sqlite3.connect(self.db_path)
 
         # Set up the point of interest table
@@ -235,7 +236,7 @@ class Log:
 
     def write_log(self, folder_path, name="log", delete_db=True):
         # Derive log 
-        log_path = f"{folder_path}/{name}.json"
+        log_path = path.join(folder_path, f"{name}.json")
 
         # Query to fetch all POIs with corresponding Pics
         self.db_cursor.execute("""
