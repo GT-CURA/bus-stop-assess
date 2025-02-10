@@ -16,16 +16,16 @@ class BusStopAssess:
         self.output_path = output_path
         self.input_path = input_path
     
-    def infer(self, image_paths=None, input_folder=None, output_folder="output"):
+    def infer(self, image_paths=None, output_folder="output"):
         """Runs the model with inputted images. Specify a folder path to infer every image in the folder."""
         # Ensure that input is provided
-        if image_paths == None and input_folder == None: 
+        if image_paths == None and self.input_path == None: 
             print("No input specified")
             return 
         
         # Gather the names of each file in the folder if a folder path is specified 
-        if input_folder:
-            file_names = [f"{input_folder}/{file}" for file in os.listdir(input_folder)]
+        if self.input_path:
+            file_names = [f"{self.input_path}/{file}" for file in os.listdir(self.input_path)]
             image_paths=file_names
 
         # Run model

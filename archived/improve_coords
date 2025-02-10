@@ -1,0 +1,28 @@
+# Function used to just update a bus stop's location
+from streetview import Session, POI, Pic, Error
+import geojson 
+
+def get_coords():
+    sesh = Session(folder_path="pics/atl_study_area/test", debug=True)
+
+    with open("data/atl/All_Stops_In_Bounds.json") as f:
+        stops = geojson.load(f)['features']
+
+    for i in range(501,len(stops)):
+        # Build POI, get new coords
+        stop = stops.__getitem__(i)
+        coords = stop["geometry"]["coordinates"]
+        stop_id = stop["properties"]["MARTA_Inventory_Within.Stop_ID"]
+        poi = POI(id=stop_id, lat=coords[1], lon=coords[0])
+        poi.errors.append(Error("while pulling images", "log didn't save."))
+        sesh.improve_coords(poi)
+
+        # Add PICs
+        for i in range(3):
+            pic = Pic(i+1)
+            poi.pics.append(pic)
+
+        # Write the fucking entry
+        sesh.log.commit_entry(poi)
+
+    sesh.write_log()

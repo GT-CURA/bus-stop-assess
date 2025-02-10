@@ -13,14 +13,14 @@ The pipeline for automatically assessing bus stop completeness
 
 def pull_imgs():
     # Create new sessions of the tools we're using 
-    sesh = Session(folder_path="pics/atl_study_area/test", debug=True)
+    sesh = Session(folder_path="pics/atl_study_area/501_up", debug=True)
     spacer = multipoint.Autoincrement("key.txt")
 
     with open("data/atl/All_Stops_In_Bounds.json") as f:
         stops = geojson.load(f)['features']
 
     # Iterate through stops
-    for i in range(1, 3):
+    for i in range(501, len(stops)):
         # Fetch stop at this index
         stop = stops.__getitem__(i)
         # Build POI
@@ -37,14 +37,7 @@ def pull_imgs():
 
     sesh.write_log()
 
-def assess(input_folder:str, output_folder:str = None, min_conf=.4):
-    # Set up YOLO model and get its classes 
-    model = BusStopAssess(input_folder, output_folder)
-
-    # Open folder with log
-    with open(f"{input_folder}/log.json") as f:
-            stops = json.load(f)
-
+def _assess(stops, model, input_folder:str, output_folder:str = None, min_conf=.4):
     # Run the model on the entire folder
     output = model.infer_log(stops, False, min_conf)
 
@@ -73,44 +66,47 @@ def assess(input_folder:str, output_folder:str = None, min_conf=.4):
                    # Add to this label in the dict
                    poi_scores[label] = total_score
 
+         # Add some of the POI's info from the log to its score dict
+         poi_scores["latitude_og"] = stops["og_lat"]
+         poi_scores["longitude_og"] = stops["og_lon"]
+         poi_scores["latitude"] = stops["lat"]
+         poi_scores["longitude"] = stops["lon"]
+         poi_scores["gmaps_place_name"] = stops["place_name"]
+
          # Add POI's results to dict
          scores[id] = poi_scores
 
-    # Save in output if requested 
+    # Set save path to output folder if provided 
     save_path = f"{input_folder}/scores.json"
     if output_folder:
         save_path = f"{output_folder}/scores.json"
 
+    # Save to JSON 
     with open(save_path, "w") as outfile: 
-        json.dump(scores, outfile)
+        json.dump(scores, outfile, indent=2)
     return scores
 
-def get_coords():
-    sesh = Session(folder_path="pics/atl_study_area/test", debug=True)
+def make_chunks(stops, chunk_size):
+    items = list(stops.items())
+    for i in range(0, len(items), chunk_size):
+        yield dict(items[i:i + chunk_size])
 
-    with open("data/atl/All_Stops_In_Bounds.json") as f:
-        stops = geojson.load(f)['features']
+def assess(input_folder:str, output_folder:str = None, min_conf=.4, chunk_size=0):
+    # Open the log 
+    with open(f"{input_folder}/log.json") as f:
+            stops = json.load(f)
 
-    for i in range(347,501):
-        # Build POI, get new coords
-        stop = stops.__getitem__(i)
-        coords = stop["geometry"]["coordinates"]
-        stop_id = stop["properties"]["MARTA_Inventory_Within.Stop_ID"]
-        poi = POI(id=stop_id, lat=coords[1], lon=coords[0])
-        poi.errors.append(Error("while pulling images", "log didn't save."))
-        sesh.improve_coords(poi)
+    # Set up YOLO model 
+    model = BusStopAssess(input_folder, output_folder)
 
-        # Add PICs
-        for i in range(3):
-            pic = Pic(i+1)
-            poi.pics.append(pic)
+    # Only run the model on a finite number of stops bc WSL keeps crashing :(
+    
 
-        # Write fucking entry
-        sesh.log.commit_entry(poi)
-
-    sesh.write_log()
+    
+         
+         
 
 # Run stuff
 # pull_imgs()
-scores = assess("pics/atl_study_area/200_to_500")
-print("test")
+scores = _assess("/home/dev/src/bus-stop-assess/pics/atl_study_area/all")
+print("Done.")
