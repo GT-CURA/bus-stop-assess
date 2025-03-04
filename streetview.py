@@ -176,7 +176,7 @@ class Session:
     
     def improve_coords(self, poi: POI, verify_unique=False):
         """
-        Pull Google's coordinates for a POI in the event that the provided coordinates suck. 
+        Pull Google's coordinates for a POI in the event that the provided coordinates are inaccurate. 
         Will use the 'nearby search' tool in the Google Maps API to find the nearest 'keyword'
         to the POI's location and update the POI's coords acoordingly (haha).  
         Args:

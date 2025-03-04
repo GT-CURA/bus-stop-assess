@@ -11,18 +11,23 @@ import os
 The pipeline for automatically assessing bus stop completeness  
 """
 
-def pull_imgs():
+def pull_imgs(folder_path: str, geojson_path: str):
+    """
+    Pull an image of every bus stop from a geojson file. 
+    """
     # Create new sessions of the tools we're using 
-    sesh = Session(folder_path="pics/atl_study_area/501_up", debug=True)
+    sesh = Session(folder_path=folder_path, debug=True)
     spacer = multipoint.Autoincrement("key.txt")
 
-    with open("data/atl/All_Stops_In_Bounds.json") as f:
+    # Open geojson record of stops 
+    with open(geojson_path) as f:
         stops = geojson.load(f)['features']
 
     # Iterate through stops
-    for i in range(501, len(stops)):
+    for id in stops:
         # Fetch stop at this index
-        stop = stops.__getitem__(i)
+        stop = stops[id]
+        
         # Build POI
         coords = stop["geometry"]["coordinates"]
         stop_id = stop["properties"]["MARTA_Inventory_Within.Stop_ID"]
@@ -87,6 +92,11 @@ def make_chunks(stops, chunk_size):
         yield dict(items[i:i + chunk_size])
 
 def assess(input_folder:str, output_folder:str = None, min_conf=.4, chunk_size=0):
+    """
+    Runs each of the images pulled from the prior step through the model, 
+    generating a json file containing the likelihood 'score' of each amenity for each stop.
+    Uses the log generated from the streetview pulling process to find images. 
+    """
     # Open the log 
     log_path = os.path.join(input_folder, "log.json")
     with open(log_path) as f:
@@ -133,7 +143,3 @@ def assess(input_folder:str, output_folder:str = None, min_conf=.4, chunk_size=0
     # Delete temp JSON files
     for file in temp_files:
         os.remove(file)
-
-
-scores = assess("/home/dev/src/bus-stop-assess/pics/atl_study_area/all", chunk_size=100)
-print("Done.")
