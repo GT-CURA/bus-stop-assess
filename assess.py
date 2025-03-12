@@ -24,13 +24,10 @@ def pull_imgs(folder_path: str, geojson_path: str):
         stops = geojson.load(f)['features']
 
     # Iterate through stops
-    for id in stops:
-        # Fetch stop at this index
-        stop = stops[id]
-        
+    for stop in stops:
         # Build POI
         coords = stop["geometry"]["coordinates"]
-        stop_id = stop["properties"]["MARTA_Inventory_Within.Stop_ID"]
+        stop_id = stop["properties"]["Stop_ID"]
         poi = POI(id=stop_id, lat=coords[1], lon=coords[0])
 
         # Update coords, check if it's been used
@@ -40,6 +37,7 @@ def pull_imgs(folder_path: str, geojson_path: str):
             # Pull image
             sesh.capture_POI(poi, 45)
 
+    # Once complete, write log
     sesh.write_log()
 
 def _assess(stops, model, min_conf=.4):
